@@ -1,10 +1,6 @@
 import { gql } from 'graphql-tag';
 
 export const typeDefs = gql`
-  # ============================================
-  # TYPES DE BASE
-  # ============================================
-
   type User {
     id: ID!
     email: String!
@@ -45,9 +41,11 @@ export const typeDefs = gql`
     creator: User!
   }
 
-  # ============================================
-  # ENUMS
-  # ============================================
+  # Nouveau type pour la réponse auth
+  type AuthPayload {
+    token: String!
+    user: User!
+  }
 
   enum MemberRole {
     OWNER
@@ -71,11 +69,8 @@ export const typeDefs = gql`
     URGENT
   }
 
-  # ============================================
-  # QUERIES
-  # ============================================
-
   type Query {
+    me: User
     users: [User!]!
     user(id: ID!): User
     projects: [Project!]!
@@ -84,21 +79,33 @@ export const typeDefs = gql`
     task(id: ID!): Task
   }
 
-  # ============================================
-  # MUTATIONS
-  # ============================================
-
   type Mutation {
+    # Auth
+    register(input: RegisterInput!): AuthPayload!
+    login(input: LoginInput!): AuthPayload!
+
+    # Users
     createUser(input: CreateUserInput!): User!
+
+    # Projects
     createProject(input: CreateProjectInput!): Project!
+
+    # Tasks
     createTask(input: CreateTaskInput!): Task!
     updateTask(id: ID!, input: UpdateTaskInput!): Task!
     deleteTask(id: ID!): Boolean!
   }
 
-  # ============================================
-  # INPUTS
-  # ============================================
+  input RegisterInput {
+    email: String!
+    name: String
+    password: String!
+  }
+
+  input LoginInput {
+    email: String!
+    password: String!
+  }
 
   input CreateUserInput {
     email: String!

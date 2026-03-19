@@ -1,22 +1,31 @@
 import { prisma } from '@/lib/prisma';
+import { hashPassword, verifyPassword, generateToken } from '@/lib/auth';
+import type { Context } from '@/types/context';
 
 export const resolvers = {
   Query: {
-    // Récupère tous les users
+    // Retourne l'utilisateur connecté
+    me: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) return null;
+      return prisma.user.findUnique({
+        where: { id: context.user.id },
+      });
+    },
+
     users: async () => {
       return prisma.user.findMany();
     },
 
-    // Récupère un user par son ID
     user: async (_: unknown, args: { id: string }) => {
       return prisma.user.findUnique({
         where: { id: args.id },
       });
     },
 
-    // Récupère tous les projets
-    projects: async () => {
+    projects: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.project.findMany({
+        where: { ownerId: context.user.id },
         include: {
           owner: true,
           members: { include: { user: true } },
@@ -25,8 +34,8 @@ export const resolvers = {
       });
     },
 
-    // Récupère un projet par son ID
-    project: async (_: unknown, args: { id: string }) => {
+    project: async (_: unknown, args: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.project.findUnique({
         where: { id: args.id },
         include: {
@@ -37,9 +46,10 @@ export const resolvers = {
       });
     },
 
-    // Récupère toutes les tâches
-    tasks: async () => {
+    tasks: async (_: unknown, __: unknown, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.task.findMany({
+        where: { creatorId: context.user.id },
         include: {
           project: true,
           assignee: true,
@@ -48,8 +58,8 @@ export const resolvers = {
       });
     },
 
-    // Récupère une tâche par son ID
-    task: async (_: unknown, args: { id: string }) => {
+    task: async (_: unknown, args: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.task.findUnique({
         where: { id: args.id },
         include: {
@@ -62,45 +72,85 @@ export const resolvers = {
   },
 
   Mutation: {
-    // Crée un nouvel utilisateur
+    // Inscription
+    register: async (
+      _: unknown,
+      args: { input: { email: string; name?: string; password: string } },
+    ) => {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: args.input.email },
+      });
+
+      if (existingUser) {
+        throw new Error('Un compte existe déjà avec cet email');
+      }
+
+      const hashedPassword = await hashPassword(args.input.password);
+
+      const user = await prisma.user.create({
+        data: {
+          email: args.input.email,
+          name: args.input.name,
+          password: hashedPassword,
+        },
+      });
+
+      const token = generateToken({ id: user.id, email: user.email });
+
+      return { token, user };
+    },
+
+    // Connexion
+    login: async (_: unknown, args: { input: { email: string; password: string } }) => {
+      const user = await prisma.user.findUnique({
+        where: { email: args.input.email },
+      });
+
+      if (!user) {
+        throw new Error('Email ou mot de passe incorrect');
+      }
+
+      const isValid = await verifyPassword(args.input.password, user.password);
+
+      if (!isValid) {
+        throw new Error('Email ou mot de passe incorrect');
+      }
+
+      const token = generateToken({ id: user.id, email: user.email });
+
+      return { token, user };
+    },
+
     createUser: async (
       _: unknown,
-      args: {
-        input: {
-          email: string;
-          name?: string;
-          password: string;
-        };
-      },
+      args: { input: { email: string; name?: string; password: string } },
     ) => {
+      const hashedPassword = await hashPassword(args.input.password);
       return prisma.user.create({
         data: {
           email: args.input.email,
           name: args.input.name,
-          password: args.input.password,
+          password: hashedPassword,
         },
       });
     },
 
-    // Crée un nouveau projet
     createProject: async (
       _: unknown,
       args: {
-        input: {
-          name: string;
-          description?: string;
-          ownerId: string;
-        };
+        input: { name: string; description?: string; ownerId: string };
       },
+      context: Context,
     ) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.project.create({
         data: {
           name: args.input.name,
           description: args.input.description,
-          ownerId: args.input.ownerId,
+          ownerId: context.user.id,
           members: {
             create: {
-              userId: args.input.ownerId,
+              userId: context.user.id,
               role: 'OWNER',
             },
           },
@@ -112,29 +162,26 @@ export const resolvers = {
       });
     },
 
-    // Crée une nouvelle tâche
     createTask: async (
       _: unknown,
       args: {
         input: {
           title: string;
           description?: string;
-          status?: string;
-          priority?: string;
-          dueDate?: string;
           projectId: string;
           assigneeId?: string;
-          creatorId: string;
         };
       },
+      context: Context,
     ) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.task.create({
         data: {
           title: args.input.title,
           description: args.input.description,
           projectId: args.input.projectId,
           assigneeId: args.input.assigneeId,
-          creatorId: args.input.creatorId,
+          creatorId: context.user.id,
         },
         include: {
           project: true,
@@ -144,7 +191,6 @@ export const resolvers = {
       });
     },
 
-    // Met à jour une tâche
     updateTask: async (
       _: unknown,
       args: {
@@ -154,11 +200,12 @@ export const resolvers = {
           description?: string;
           status?: string;
           priority?: string;
-          dueDate?: string;
           assigneeId?: string;
         };
       },
+      context: Context,
     ) => {
+      if (!context.user) throw new Error('Non autorisé');
       return prisma.task.update({
         where: { id: args.id },
         data: {
@@ -174,8 +221,8 @@ export const resolvers = {
       });
     },
 
-    // Supprime une tâche
-    deleteTask: async (_: unknown, args: { id: string }) => {
+    deleteTask: async (_: unknown, args: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
       await prisma.task.delete({
         where: { id: args.id },
       });
