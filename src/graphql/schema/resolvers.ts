@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { hashPassword, verifyPassword, generateToken } from '@/lib/auth';
+import { requireProjectRole } from '@/lib/permissions';
 import type { Context } from '@/types/context';
 
 export const resolvers = {
   Query: {
-    // Retourne l'utilisateur connecté
     me: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return null;
       return prisma.user.findUnique({
@@ -25,7 +25,11 @@ export const resolvers = {
     projects: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) throw new Error('Non autorisé');
       return prisma.project.findMany({
-        where: { ownerId: context.user.id },
+        where: {
+          members: {
+            some: { userId: context.user.id },
+          },
+        },
         include: {
           owner: true,
           members: { include: { user: true } },
@@ -36,12 +40,18 @@ export const resolvers = {
 
     project: async (_: unknown, args: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Non autorisé');
+      await requireProjectRole(context.user.id, args.id, 'VIEWER');
       return prisma.project.findUnique({
         where: { id: args.id },
         include: {
           owner: true,
           members: { include: { user: true } },
-          tasks: true,
+          tasks: {
+            include: {
+              assignee: true,
+              creator: true,
+            },
+          },
         },
       });
     },
@@ -60,7 +70,7 @@ export const resolvers = {
 
     task: async (_: unknown, args: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Non autorisé');
-      return prisma.task.findUnique({
+      const task = await prisma.task.findUnique({
         where: { id: args.id },
         include: {
           project: true,
@@ -68,11 +78,13 @@ export const resolvers = {
           creator: true,
         },
       });
+      if (!task) return null;
+      await requireProjectRole(context.user.id, task.projectId, 'VIEWER');
+      return task;
     },
   },
 
   Mutation: {
-    // Inscription
     register: async (
       _: unknown,
       args: { input: { email: string; name?: string; password: string } },
@@ -80,13 +92,10 @@ export const resolvers = {
       const existingUser = await prisma.user.findUnique({
         where: { email: args.input.email },
       });
-
       if (existingUser) {
         throw new Error('Un compte existe déjà avec cet email');
       }
-
       const hashedPassword = await hashPassword(args.input.password);
-
       const user = await prisma.user.create({
         data: {
           email: args.input.email,
@@ -94,30 +103,18 @@ export const resolvers = {
           password: hashedPassword,
         },
       });
-
       const token = generateToken({ id: user.id, email: user.email });
-
       return { token, user };
     },
 
-    // Connexion
     login: async (_: unknown, args: { input: { email: string; password: string } }) => {
       const user = await prisma.user.findUnique({
         where: { email: args.input.email },
       });
-
-      if (!user) {
-        throw new Error('Email ou mot de passe incorrect');
-      }
-
+      if (!user) throw new Error('Email ou mot de passe incorrect');
       const isValid = await verifyPassword(args.input.password, user.password);
-
-      if (!isValid) {
-        throw new Error('Email ou mot de passe incorrect');
-      }
-
+      if (!isValid) throw new Error('Email ou mot de passe incorrect');
       const token = generateToken({ id: user.id, email: user.email });
-
       return { token, user };
     },
 
@@ -137,9 +134,7 @@ export const resolvers = {
 
     createProject: async (
       _: unknown,
-      args: {
-        input: { name: string; description?: string; ownerId: string };
-      },
+      args: { input: { name: string; description?: string } },
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
@@ -162,6 +157,51 @@ export const resolvers = {
       });
     },
 
+    // Nouvelle mutation — ajouter un membre
+    addMember: async (
+      _: unknown,
+      args: { projectId: string; email: string; role: string },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      // Seul un OWNER ou ADMIN peut ajouter des membres
+      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
+
+      const userToAdd = await prisma.user.findUnique({
+        where: { email: args.email },
+      });
+
+      if (!userToAdd) {
+        throw new Error('Aucun utilisateur trouvé avec cet email');
+      }
+
+      const existingMember = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId: userToAdd.id,
+            projectId: args.projectId,
+          },
+        },
+      });
+
+      if (existingMember) {
+        throw new Error('Cet utilisateur est déjà membre du projet');
+      }
+
+      return prisma.projectMember.create({
+        data: {
+          userId: userToAdd.id,
+          projectId: args.projectId,
+          role: args.role as 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER',
+        },
+        include: {
+          user: true,
+          project: true,
+        },
+      });
+    },
+
     createTask: async (
       _: unknown,
       args: {
@@ -175,6 +215,10 @@ export const resolvers = {
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
+
+      // Seul un MEMBER ou plus peut créer des tâches
+      await requireProjectRole(context.user.id, args.input.projectId, 'MEMBER');
+
       return prisma.task.create({
         data: {
           title: args.input.title,
@@ -206,12 +250,24 @@ export const resolvers = {
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
+      const task = await prisma.task.findUnique({
+        where: { id: args.id },
+      });
+      if (!task) throw new Error('Tâche introuvable');
+
+      // Seul un MEMBER ou plus peut modifier des tâches
+      await requireProjectRole(context.user.id, task.projectId, 'MEMBER');
+
       return prisma.task.update({
         where: { id: args.id },
         data: {
           title: args.input.title ?? undefined,
           description: args.input.description ?? undefined,
           assigneeId: args.input.assigneeId ?? undefined,
+          status:
+            (args.input.status as 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELLED') ??
+            undefined,
+          priority: (args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT') ?? undefined,
         },
         include: {
           project: true,
@@ -223,9 +279,15 @@ export const resolvers = {
 
     deleteTask: async (_: unknown, args: { id: string }, context: Context) => {
       if (!context.user) throw new Error('Non autorisé');
-      await prisma.task.delete({
+      const task = await prisma.task.findUnique({
         where: { id: args.id },
       });
+      if (!task) throw new Error('Tâche introuvable');
+
+      // Seul un ADMIN ou plus peut supprimer des tâches
+      await requireProjectRole(context.user.id, task.projectId, 'ADMIN');
+
+      await prisma.task.delete({ where: { id: args.id } });
       return true;
     },
   },

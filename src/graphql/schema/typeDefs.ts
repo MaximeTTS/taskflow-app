@@ -89,6 +89,7 @@ export const typeDefs = gql`
 
     # Projects
     createProject(input: CreateProjectInput!): Project!
+    addMember(projectId: ID!, email: String!, role: MemberRole!): ProjectMember!
 
     # Tasks
     createTask(input: CreateTaskInput!): Task!
@@ -116,7 +117,6 @@ export const typeDefs = gql`
   input CreateProjectInput {
     name: String!
     description: String
-    ownerId: String!
   }
 
   input CreateTaskInput {
