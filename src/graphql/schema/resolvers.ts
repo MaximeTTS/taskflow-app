@@ -389,7 +389,7 @@ export const resolvers = {
           status?: string;
           priority?: string;
           dueDate?: string;
-          assigneeId?: string;
+          assigneeId?: string | null;
         };
       },
       context: Context,
@@ -406,7 +406,7 @@ export const resolvers = {
         data: {
           title: args.input.title ?? undefined,
           description: args.input.description ?? undefined,
-          assigneeId: args.input.assigneeId ?? undefined,
+          assigneeId: args.input.assigneeId === null ? null : (args.input.assigneeId ?? undefined),
           status: args.input.status as
             | 'TODO'
             | 'IN_PROGRESS'

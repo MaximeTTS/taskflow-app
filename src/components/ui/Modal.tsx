@@ -27,11 +27,11 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-[#16161f] border border-[#2a2a3a] rounded-2xl w-full max-w-md p-6 overflow-hidden"
+        className="bg-[#16161f] border border-[#2a2a3a] rounded-2xl w-full max-w-lg p-6 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-[#f0f0ff]">{title}</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xl font-semibold text-[#f0f0ff]">{title}</h2>
           <button
             onClick={onClose}
             className="text-[#55556a] hover:text-[#f0f0ff] transition-colors text-xl leading-none"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { useAuthStore } from '@/store/auth-store';
 
 const GET_PROJECT = gql`
   query GetProject($id: ID!) {
@@ -45,6 +46,11 @@ const GET_PROJECT = gql`
           id
           name
         }
+        images {
+          id
+          url
+          publicId
+        }
       }
     }
   }
@@ -66,6 +72,7 @@ const UPDATE_TASK = gql`
     updateTask(id: $id, input: $input) {
       id
       status
+      priority
     }
   }
 `;
@@ -109,6 +116,39 @@ const UPDATE_MEMBER_ROLE = gql`
   }
 `;
 
+const UPDATE_PROJECT = gql`
+  mutation UpdateProject($id: ID!, $input: UpdateProjectInput!) {
+    updateProject(id: $id, input: $input) {
+      id
+      name
+      description
+    }
+  }
+`;
+
+const DELETE_PROJECT = gql`
+  mutation DeleteProject($id: ID!) {
+    deleteProject(id: $id)
+  }
+`;
+
+const UPLOAD_IMAGE = gql`
+  mutation UploadTaskImage($taskId: ID!, $base64Image: String!) {
+    uploadTaskImage(taskId: $taskId, base64Image: $base64Image) {
+      id
+      url
+      publicId
+    }
+  }
+`;
+
+const DELETE_IMAGE = gql`
+  mutation DeleteTaskImage($imageId: ID!) {
+    deleteTaskImage(imageId: $imageId)
+  }
+`;
+
+type TaskImage = { id: string; url: string; publicId: string };
 type Assignee = { id: string; name: string };
 type Task = {
   id: string;
@@ -119,6 +159,7 @@ type Task = {
   createdAt: string;
   assignee: Assignee | null;
   creator: { id: string; name: string };
+  images: TaskImage[];
 };
 type Member = { id: string; role: string; user: { id: string; name: string; email: string } };
 type Project = {
@@ -151,31 +192,53 @@ const PRIORITY_LABEL: Record<string, string> = {
   LOW: 'Basse',
 };
 
+const PRIORITY_BORDER: Record<string, string> = {
+  URGENT: 'border-l-red-500',
+  HIGH: 'border-l-amber-500',
+  MEDIUM: 'border-l-blue-500',
+  LOW: 'border-l-[#2a2a3a]',
+};
+
+const SELECT_CLASS =
+  'w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] outline-none focus:border-indigo-500 appearance-none pr-10';
+
 export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
+  const { user, logout } = useAuthStore();
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newPriority, setNewPriority] = useState('MEDIUM');
   const [creating, setCreating] = useState(false);
+
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState('MEMBER');
   const [addingMember, setAddingMember] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [savingProject, setSavingProject] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+
+  const [lightboxImages, setLightboxImages] = useState<TaskImage[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const u = JSON.parse(userStr) as { id: string };
-      setCurrentUserId(u.id);
-    }
+    if (userStr) setCurrentUserId((JSON.parse(userStr) as { id: string }).id);
   }, []);
 
   useEffect(() => {
@@ -205,8 +268,8 @@ export default function ProjectPage() {
     e.preventDefault();
     setCreating(true);
     const userStr = localStorage.getItem('user');
-    const currentUser = userStr ? (JSON.parse(userStr) as { id: string }) : null;
-    if (!currentUser?.id) return;
+    const cu = userStr ? (JSON.parse(userStr) as { id: string }) : null;
+    if (!cu?.id) return;
     try {
       await apolloClient.mutate({
         mutation: CREATE_TASK,
@@ -216,7 +279,7 @@ export default function ProjectPage() {
             description: newDesc,
             priority: newPriority,
             projectId,
-            creatorId: currentUser.id,
+            creatorId: cu.id,
           },
         },
       });
@@ -231,12 +294,9 @@ export default function ProjectPage() {
     }
   };
 
-  const handleUpdateStatus = async (taskId: string, status: string) => {
+  const handleUpdateTask = async (taskId: string, input: Record<string, string | null>) => {
     try {
-      await apolloClient.mutate({
-        mutation: UPDATE_TASK,
-        variables: { id: taskId, input: { status } },
-      });
+      await apolloClient.mutate({ mutation: UPDATE_TASK, variables: { id: taskId, input } });
       void fetchProject();
     } catch (err) {
       console.error(err);
@@ -292,33 +352,114 @@ export default function ProjectPage() {
     }
   };
 
+  const handleUpdateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProject(true);
+    try {
+      await apolloClient.mutate({
+        mutation: UPDATE_PROJECT,
+        variables: { id: projectId, input: { name: editName, description: editDesc } },
+      });
+      setShowEditProject(false);
+      void fetchProject();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm('Supprimer ce projet ? Cette action est irréversible.')) return;
+    setDeletingProject(true);
+    try {
+      await apolloClient.mutate({ mutation: DELETE_PROJECT, variables: { id: projectId } });
+      router.push('/dashboard');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
+  const handleUploadImage = async (file: File) => {
+    if (!selectedTask) return;
+    setUploadingImage(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await apolloClient.mutate({
+        mutation: UPLOAD_IMAGE,
+        variables: { taskId: selectedTask.id, base64Image: base64 },
+      });
+      const { data } = await apolloClient.query({
+        query: GET_PROJECT,
+        variables: { id: projectId },
+        fetchPolicy: 'network-only',
+      });
+      const updatedProject = (data as { project: Project }).project;
+      const updatedTask = updatedProject.tasks.find((t) => t.id === selectedTask.id);
+      if (updatedTask) setSelectedTask(updatedTask);
+      setProject(updatedProject);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    try {
+      await apolloClient.mutate({ mutation: DELETE_IMAGE, variables: { imageId } });
+      const { data } = await apolloClient.query({
+        query: GET_PROJECT,
+        variables: { id: projectId },
+        fetchPolicy: 'network-only',
+      });
+      const updatedProject = (data as { project: Project }).project;
+      const updatedTask = updatedProject.tasks.find((t) => t.id === selectedTask?.id);
+      if (updatedTask) setSelectedTask(updatedTask);
+      setProject(updatedProject);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading)
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-[#55556a] text-sm">Chargement...</div>
+        <div className="text-[#8888aa] text-base">Chargement...</div>
       </div>
     );
 
   if (!project)
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-[#55556a] text-sm">Projet introuvable</div>
+        <div className="text-[#8888aa] text-base">Projet introuvable</div>
       </div>
     );
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">
       {/* Sidebar */}
-      <aside className="w-56 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full">
-        <div className="p-5 border-b border-[#2a2a3a]">
-          <div className="text-base font-bold text-[#f0f0ff]">
+      <aside className="w-60 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full overflow-y-auto">
+        <div className="p-6 border-b border-[#2a2a3a]">
+          <div className="text-3xl font-bold text-[#f0f0ff]">
             Task<span className="text-indigo-400">Flow</span>
           </div>
         </div>
-        <nav className="p-3 flex-1">
+
+        <nav className="p-3">
+          <div className="text-[12px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
+            Menu
+          </div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"
@@ -334,7 +475,7 @@ export default function ProjectPage() {
             </svg>
             Dashboard
           </button>
-          <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-indigo-500/10 text-indigo-400">
+          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
               viewBox="0 0 24 24"
@@ -344,39 +485,185 @@ export default function ProjectPage() {
             >
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
-            {project.name}
+            <span className="truncate">{project.name}</span>
+          </button>
+          <button
+            onClick={() => router.push('/profile')}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Profil
+          </button>
+          <button
+            onClick={() => {
+              logout();
+              router.push('/login');
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Déconnexion
           </button>
         </nav>
-        <div className="p-3 border-t border-[#2a2a3a]">
-          <div className="flex items-center gap-2 px-2 py-1">
-            <div className="text-xs text-[#55556a]">{project.members.length} membre(s)</div>
-            <div className="flex -space-x-1.5 ml-auto">
-              {project.members.slice(0, 3).map((m) => (
-                <div key={m.id} className="ring-2 ring-[#111118] rounded-full">
+
+        {/* Membres dans la sidebar */}
+        <div className="p-3 border-t border-[#2a2a3a] mt-2">
+          <div className="flex items-center justify-between px-2 mb-3">
+            <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider">
+              Membres
+            </div>
+            <button
+              onClick={() => setShowMemberModal(true)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              + Inviter
+            </button>
+          </div>
+          <div className="flex flex-col gap-1">
+            {project.members.map((m) => (
+              <div
+                key={m.id}
+                className="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-[#1e1e2a] group"
+              >
+                <div className="flex items-center gap-2">
                   <Avatar name={m.user.name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
+                  </div>
+                  {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
+                    <button
+                      onClick={() => void handleRemoveMember(m.user.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[#55556a] hover:text-red-400 transition-all text-base leading-none"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
-              ))}
+                {m.user.id !== project.owner.id ? (
+                  <select
+                    value={m.role}
+                    onChange={(e) => void handleUpdateRole(m.user.id, e.target.value)}
+                    className="w-full bg-[#2a2a3a] border border-[#3a3a50] rounded px-2 py-1 text-xs text-[#f0f0ff] outline-none mt-1"
+                  >
+                    <option value="ADMIN">Admin</option>
+                    <option value="MEMBER">Member</option>
+                    <option value="VIEWER">Viewer</option>
+                  </select>
+                ) : (
+                  <div className="text-[10px] text-indigo-400 px-0.5">Owner</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-[#2a2a3a] mt-auto">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-[#f0f0ff] truncate">
+                {user?.name ?? 'Utilisateur'}
+              </div>
+              <div className="text-xs text-[#8888aa] truncate">{user?.email}</div>
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="ml-56 flex-1 flex flex-col">
+      <main className="ml-60 flex-1 flex flex-col">
+        {/* Header */}
         {/* Header */}
         <div className="border-b border-[#2a2a3a] px-8 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-[#f0f0ff]">{project.name}</h1>
-            {project.description && (
-              <p className="text-sm text-[#55556a] mt-0.5">{project.description}</p>
-            )}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-[#8888aa] hover:text-[#f0f0ff] transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M19 12H5M12 5l-7 7 7 7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-[#f0f0ff]">{project.name}</h1>
+              {project.description && (
+                <p className="text-sm text-[#8888aa] mt-0.5">{project.description}</p>
+              )}
+              {/* Boutons éditer + supprimer sous la description */}
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => {
+                    setEditName(project.name);
+                    setEditDesc(project.description ?? '');
+                    setShowEditProject(true);
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-[#55556a] hover:text-[#8888aa] transition-colors"
+                >
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Modifier
+                </button>
+                <button
+                  onClick={() => void handleDeleteProject()}
+                  disabled={deletingProject}
+                  className="flex items-center gap-1.5 text-xs text-[#55556a] hover:text-red-400 transition-colors disabled:opacity-50"
+                >
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4h6v2" />
+                  </svg>
+                  Supprimer
+                </button>
+              </div>
+            </div>
           </div>
           <Button onClick={() => setShowTaskModal(true)}>+ Nouvelle tâche</Button>
         </div>
 
         {/* Kanban */}
-        <div className="p-8 overflow-x-auto">
-          <div className="grid grid-cols-4 gap-4 min-w-[800px]">
+        <div className="p-8 overflow-x-auto flex-1">
+          <div className="grid grid-cols-4 gap-4 min-w-[900px] items-start">
             {COLUMNS.map((col) => {
               const tasks = project.tasks.filter((t) => t.status === col.key);
               return (
@@ -386,8 +673,8 @@ export default function ProjectPage() {
                 >
                   <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
                     <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                    <span className="text-xs font-medium text-[#8888aa]">{col.label}</span>
-                    <span className="ml-auto bg-[#2a2a3a] text-[#55556a] text-xs px-2 py-0.5 rounded-full">
+                    <span className="text-md font-medium text-[#8888aa]">{col.label}</span>
+                    <span className="ml-auto bg-[#2a2a3a] text-[#8888aa] text-xs px-2 py-0.5 rounded-full">
                       {tasks.length}
                     </span>
                   </div>
@@ -396,75 +683,61 @@ export default function ProjectPage() {
                       <div
                         key={task.id}
                         onClick={() => setSelectedTask(task)}
-                        className="bg-[#16161f] border border-[#2a2a3a] rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group"
+                        className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group`}
                       >
-                        <p className="text-sm text-[#f0f0ff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors">
+                        <p className="text-lg font-semibold text-[#ffffff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors">
                           {task.title}
                         </p>
-                        <div className="flex items-center justify-between">
+                        {task.description && (
+                          <p className="text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed">
+                            {task.description}
+                          </p>
+                        )}
+                        {task.images.length > 0 && (
+                          <div className="flex gap-1 mb-2">
+                            {task.images.slice(0, 3).map((img) => (
+                              <img
+                                key={img.id}
+                                src={img.url}
+                                alt=""
+                                className="w-20 h-20 rounded object-cover border border-[#2a2a3a]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLightboxImages(task.images);
+                                  setLightboxIndex(task.images.indexOf(img));
+                                }}
+                              />
+                            ))}
+                            {task.images.length > 3 && (
+                              <div className="w-10 h-10 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
+                                +{task.images.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-1">
                           <Badge variant={PRIORITY_BADGE[task.priority] ?? 'default'}>
                             {PRIORITY_LABEL[task.priority] ?? task.priority}
                           </Badge>
-                          {task.assignee && <Avatar name={task.assignee.name} size="sm" />}
+                          {task.assignee ? (
+                            <div className="flex items-center gap-1">
+                              <Avatar name={task.assignee.name} size="sm" />
+                            </div>
+                          ) : (
+                            <span className="text-[14px] text-[#80808f]">Non assigné</span>
+                          )}
                         </div>
                       </div>
                     ))}
                     {tasks.length === 0 && (
                       <div className="flex-1 flex items-center justify-center py-8">
-                        <p className="text-xs text-[#2a2a3a]">Aucune tâche</p>
+                        <p className="text-md text-[#2a2a3a]">Aucune tâche</p>
                       </div>
                     )}
                   </div>
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Section membres */}
-        <div className="px-8 pb-8">
-          <div className="bg-[#111118] border border-[#2a2a3a] rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-[#f0f0ff]">Membres</h2>
-              <Button size="sm" onClick={() => setShowMemberModal(true)}>
-                + Inviter
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {project.members.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-3 p-3 bg-[#16161f] border border-[#2a2a3a] rounded-lg"
-                >
-                  <Avatar name={m.user.name} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
-                    <div className="text-xs text-[#55556a] truncate">{m.user.email}</div>
-                  </div>
-                  {m.user.id !== project.owner.id ? (
-                    <select
-                      value={m.role}
-                      onChange={(e) => void handleUpdateRole(m.user.id, e.target.value)}
-                      className="bg-[#2a2a3a] border border-[#3a3a50] rounded-lg px-2 py-1 text-xs text-[#f0f0ff] outline-none"
-                    >
-                      <option value="ADMIN">Admin</option>
-                      <option value="MEMBER">Member</option>
-                      <option value="VIEWER">Viewer</option>
-                    </select>
-                  ) : (
-                    <Badge variant="purple">Owner</Badge>
-                  )}
-                  {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
-                    <button
-                      onClick={() => void handleRemoveMember(m.user.id)}
-                      className="text-[#55556a] hover:text-red-400 transition-colors text-lg leading-none ml-1"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </main>
@@ -487,16 +760,29 @@ export default function ProjectPage() {
           />
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#8888aa]">Priorité</label>
-            <select
-              value={newPriority}
-              onChange={(e) => setNewPriority(e.target.value)}
-              className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-2.5 text-sm text-[#f0f0ff] outline-none focus:border-indigo-500"
-            >
-              <option value="LOW">Basse</option>
-              <option value="MEDIUM">Moyenne</option>
-              <option value="HIGH">Haute</option>
-              <option value="URGENT">Urgente</option>
-            </select>
+            <div className="relative">
+              <select
+                value={newPriority}
+                onChange={(e) => setNewPriority(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="LOW">Basse</option>
+                <option value="MEDIUM">Moyenne</option>
+                <option value="HIGH">Haute</option>
+                <option value="URGENT">Urgente</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+            </div>
           </div>
           <div className="flex gap-3 justify-end">
             <Button variant="ghost" type="button" onClick={() => setShowTaskModal(false)}>
@@ -516,46 +802,182 @@ export default function ProjectPage() {
         title={selectedTask?.title ?? ''}
       >
         {selectedTask && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge variant={PRIORITY_BADGE[selectedTask.priority] ?? 'default'}>
                 {PRIORITY_LABEL[selectedTask.priority]}
               </Badge>
               {selectedTask.assignee && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <Avatar name={selectedTask.assignee.name} size="sm" />
-                  <span className="text-xs text-[#8888aa]">{selectedTask.assignee.name}</span>
+                  <span className="text-base text-[#8888aa]">{selectedTask.assignee.name}</span>
                 </div>
               )}
             </div>
+
             {selectedTask.description && (
-              <p className="text-sm text-[#8888aa] leading-relaxed break-words overflow-hidden">
+              <p className="text-lg text-[#FFFF] leading-relaxed break-words">
                 {selectedTask.description}
               </p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[#8888aa]">Statut</label>
-              <select
-                value={selectedTask.status}
-                onChange={(e) => void handleUpdateStatus(selectedTask.id, e.target.value)}
-                className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-2.5 text-sm text-[#f0f0ff] outline-none focus:border-indigo-500"
-              >
-                {COLUMNS.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+
+            {/* Priorité */}
+            <div className="flex flex-col gap-2">
+              <label className="text-md font-medium text-[#8888aa]">Priorité</label>
+              <div className="relative">
+                <select
+                  value={selectedTask.priority}
+                  onChange={(e) => {
+                    void handleUpdateTask(selectedTask.id, { priority: e.target.value });
+                    setSelectedTask({ ...selectedTask, priority: e.target.value });
+                  }}
+                  className={SELECT_CLASS}
+                >
+                  <option value="LOW">Basse</option>
+                  <option value="MEDIUM">Moyenne</option>
+                  <option value="HIGH">Haute</option>
+                  <option value="URGENT">Urgente</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between pt-2 border-t border-[#2a2a3a]">
+
+            {/* Statut */}
+            <div className="flex flex-col gap-2">
+              <label className="text-md font-medium text-[#8888aa]">Statut</label>
+              <div className="relative">
+                <select
+                  value={selectedTask.status}
+                  onChange={(e) => {
+                    void handleUpdateTask(selectedTask.id, { status: e.target.value });
+                    setSelectedTask({ ...selectedTask, status: e.target.value });
+                  }}
+                  className={SELECT_CLASS}
+                >
+                  {COLUMNS.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Assigné à */}
+            <div className="flex flex-col gap-2">
+              <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
+              <div className="relative">
+                <select
+                  value={selectedTask.assignee?.id ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    void handleUpdateTask(selectedTask.id, {
+                      assigneeId: val === '' ? null : val,
+                    } as Record<string, string | null>);
+                    const member = project.members.find((m) => m.user.id === val);
+                    setSelectedTask({
+                      ...selectedTask,
+                      assignee: member ? { id: member.user.id, name: member.user.name } : null,
+                    });
+                  }}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">Non assigné</option>
+                  {project.members.map((m) => (
+                    <option key={m.user.id} value={m.user.id}>
+                      {m.user.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Images */}
+            <div className="flex flex-col gap-3">
+              <label className="text-md font-medium text-[#8888aa]">Images</label>
+              {selectedTask.images.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedTask.images.map((img, idx) => (
+                    <div key={img.id} className="relative group">
+                      <img
+                        src={img.url}
+                        alt=""
+                        className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a] cursor-pointer hover:border-indigo-500 transition-colors"
+                        onClick={() => {
+                          setLightboxImages(selectedTask.images);
+                          setLightboxIndex(idx);
+                        }}
+                      />
+                      <button
+                        onClick={() => void handleDeleteImage(img.id)}
+                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) void handleUploadImage(e.target.files[0]);
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="md"
+                loading={uploadingImage}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                + Ajouter une image
+              </Button>
+            </div>
+
+            <div className="flex justify-between pt-3 border-t border-[#2a2a3a]">
               <Button
                 variant="danger"
-                size="sm"
+                size="md"
                 onClick={() => void handleDeleteTask(selectedTask.id)}
               >
                 Supprimer
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedTask(null)}>
+              <Button variant="ghost" size="md" onClick={() => setSelectedTask(null)}>
                 Fermer
               </Button>
             </div>
@@ -580,15 +1002,28 @@ export default function ProjectPage() {
           />
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#8888aa]">Rôle</label>
-            <select
-              value={memberRole}
-              onChange={(e) => setMemberRole(e.target.value)}
-              className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-2.5 text-sm text-[#f0f0ff] outline-none focus:border-indigo-500"
-            >
-              <option value="ADMIN">Admin</option>
-              <option value="MEMBER">Member</option>
-              <option value="VIEWER">Viewer</option>
-            </select>
+            <div className="relative">
+              <select
+                value={memberRole}
+                onChange={(e) => setMemberRole(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="ADMIN">Admin</option>
+                <option value="MEMBER">Member</option>
+                <option value="VIEWER">Viewer</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+            </div>
           </div>
           <div className="flex gap-3 justify-end">
             <Button variant="ghost" type="button" onClick={() => setShowMemberModal(false)}>
@@ -600,6 +1035,87 @@ export default function ProjectPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Modal éditer projet */}
+      <Modal
+        open={showEditProject}
+        onClose={() => setShowEditProject(false)}
+        title="Modifier le projet"
+      >
+        <form onSubmit={handleUpdateProject} className="flex flex-col gap-4">
+          <Input
+            label="Nom"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Nom du projet"
+            required
+          />
+          <Input
+            label="Description"
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+            placeholder="Description (optionnel)"
+          />
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" type="button" onClick={() => setShowEditProject(false)}>
+              Annuler
+            </Button>
+            <Button type="submit" loading={savingProject}>
+              Enregistrer
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Lightbox */}
+      {lightboxImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxImages([])}
+        >
+          <button
+            className="absolute top-6 right-6 text-white text-4xl leading-none hover:text-gray-300 bg-black/40 w-10 h-10 rounded-full flex items-center justify-center"
+            onClick={() => setLightboxImages([])}
+          >
+            ×
+          </button>
+
+          {lightboxIndex > 0 && (
+            <button
+              className="absolute left-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => i - 1);
+              }}
+            >
+              ‹
+            </button>
+          )}
+
+          <img
+            src={lightboxImages[lightboxIndex]?.url}
+            alt=""
+            className="max-w-4xl max-h-[80vh] rounded-xl object-contain mx-20"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {lightboxIndex < lightboxImages.length - 1 && (
+            <button
+              className="absolute right-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => i + 1);
+              }}
+            >
+              ›
+            </button>
+          )}
+
+          <div className="absolute bottom-6 text-white text-sm opacity-60">
+            {lightboxIndex + 1} / {lightboxImages.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

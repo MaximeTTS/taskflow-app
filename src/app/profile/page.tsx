@@ -37,7 +37,7 @@ const GET_ME = gql`
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, login } = useAuthStore();
+  const { user, login, logout } = useAuthStore();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -125,16 +125,21 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">
       {/* Sidebar */}
-      <aside className="w-56 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full">
-        <div className="p-5 border-b border-[#2a2a3a]">
-          <div className="text-base font-bold text-[#f0f0ff]">
+      <aside className="w-60 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full">
+        <div className="p-6 border-b border-[#2a2a3a]">
+          <div className="text-xl font-bold text-[#f0f0ff]">
             Task<span className="text-indigo-400">Flow</span>
           </div>
         </div>
+
         <nav className="p-3 flex-1">
+          <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
+            Menu
+          </div>
+
           <button
             onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"
@@ -150,7 +155,8 @@ export default function ProfilePage() {
             </svg>
             Dashboard
           </button>
-          <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-indigo-500/10 text-indigo-400">
+
+          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
               viewBox="0 0 24 24"
@@ -163,39 +169,81 @@ export default function ProfilePage() {
             </svg>
             Profil
           </button>
+
+          <button
+            onClick={() => {
+              logout();
+              router.push('/login');
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Déconnexion
+          </button>
         </nav>
-        <div className="p-3 border-t border-[#2a2a3a]">
-          <div className="flex items-center gap-2.5 px-2 py-2">
+
+        <div className="p-4 border-t border-[#2a2a3a]">
+          <div className="flex items-center gap-3 px-2 py-2">
             <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
             <div className="min-w-0">
-              <div className="text-xs font-medium text-[#f0f0ff] truncate">
+              <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
               </div>
-              <div className="text-[10px] text-[#55556a] truncate">{user?.email}</div>
+              <div className="text-xs text-[#55556a] truncate">{user?.email}</div>
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="ml-56 flex-1 p-8 max-w-2xl">
-        <div className="mb-8">
-          <h1 className="text-xl font-bold text-[#f0f0ff]">Profil</h1>
-          <p className="text-sm text-[#55556a] mt-0.5">Gérez vos informations personnelles</p>
+      <main className="ml-60 flex-1 flex flex-col items-center py-10 px-8">
+        {/* Flèche retour */}
+        <div className="w-full max-w-2xl mb-6">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-2 text-sm text-[#8888aa] hover:text-[#f0f0ff] transition-colors"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+            Retour au dashboard
+          </button>
+        </div>
+
+        {/* Titre */}
+        <div className="w-full max-w-2xl mb-8">
+          <h1 className="text-2xl font-bold text-[#f0f0ff]">Profil</h1>
+          <p className="text-base text-[#8888aa] mt-1">Gérez vos informations personnelles</p>
         </div>
 
         {/* Avatar + infos */}
-        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 mb-6 flex items-center gap-4">
+        <div className="w-full max-w-2xl bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 mb-6 flex items-center gap-5">
           <Avatar name={user?.name ?? user?.email ?? 'U'} size="lg" />
           <div>
-            <div className="text-base font-semibold text-[#f0f0ff]">{user?.name ?? 'Sans nom'}</div>
-            <div className="text-sm text-[#55556a]">{user?.email}</div>
+            <div className="text-lg font-semibold text-[#f0f0ff]">{user?.name ?? 'Sans nom'}</div>
+            <div className="text-sm text-[#8888aa] mt-0.5">{user?.email}</div>
           </div>
         </div>
 
         {/* Formulaire profil */}
-        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 mb-6">
-          <h2 className="text-sm font-semibold text-[#f0f0ff] mb-5">Informations générales</h2>
+        <div className="w-full max-w-2xl bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 mb-6">
+          <h2 className="text-base font-semibold text-[#f0f0ff] mb-5">Informations générales</h2>
           <form onSubmit={handleUpdateProfile} className="flex flex-col gap-4">
             {profileSuccess && (
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
@@ -230,8 +278,8 @@ export default function ProfilePage() {
         </div>
 
         {/* Formulaire mot de passe */}
-        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6">
-          <h2 className="text-sm font-semibold text-[#f0f0ff] mb-5">Changer le mot de passe</h2>
+        <div className="w-full max-w-2xl bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6">
+          <h2 className="text-base font-semibold text-[#f0f0ff] mb-5">Changer le mot de passe</h2>
           <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
             {passwordSuccess && (
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">

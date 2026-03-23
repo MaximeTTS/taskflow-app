@@ -61,14 +61,6 @@ type Project = {
   members: Member[];
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  TODO: 'bg-[#2a2a3a]',
-  IN_PROGRESS: 'bg-indigo-500',
-  IN_REVIEW: 'bg-amber-500',
-  DONE: 'bg-green-500',
-  CANCELLED: 'bg-red-500',
-};
-
 export default function DashboardPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -127,30 +119,33 @@ export default function DashboardPage() {
     (acc, p) => acc + p.tasks.filter((t) => t.status === 'DONE').length,
     0,
   );
+  const activeProjects = projects.filter((p) =>
+    p.tasks.some((t) => t.status !== 'DONE' && t.status !== 'CANCELLED'),
+  );
 
   if (loading)
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-[#55556a] text-sm">Chargement...</div>
+        <div className="text-[#8888aa] text-base">Chargement...</div>
       </div>
     );
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">
       {/* Sidebar */}
-      <aside className="w-56 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full">
-        <div className="p-5 border-b border-[#2a2a3a]">
-          <div className="text-base font-bold text-[#f0f0ff]">
+      <aside className="w-60 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full">
+        <div className="p-6 border-b border-[#2a2a3a]">
+          <div className="text-3xl font-bold text-[#f0f0ff]">
             Task<span className="text-indigo-400">Flow</span>
           </div>
         </div>
 
         <nav className="p-3 flex-1">
-          <div className="text-[10px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-2">
+          <div className="text-[12px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
             Menu
           </div>
 
-          <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-indigo-500/10 text-indigo-400 mb-1">
+          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
               viewBox="0 0 24 24"
@@ -168,7 +163,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => router.push('/profile')}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"
@@ -188,7 +183,7 @@ export default function DashboardPage() {
               logout();
               router.push('/login');
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"
@@ -205,59 +200,63 @@ export default function DashboardPage() {
           </button>
         </nav>
 
-        <div className="p-3 border-t border-[#2a2a3a]">
-          <div className="flex items-center gap-2.5 px-2 py-2">
+        <div className="p-4 border-t border-[#2a2a3a]">
+          <div className="flex items-center gap-3 px-2 py-2">
             <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
             <div className="min-w-0">
-              <div className="text-xs font-medium text-[#f0f0ff] truncate">
+              <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
               </div>
-              <div className="text-[10px] text-[#55556a] truncate">{user?.email}</div>
+              <div className="text-xs text-[#8888aa] truncate">{user?.email}</div>
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="ml-56 flex-1 p-8">
+      <main className="ml-60 flex-1 p-8">
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-xl font-bold text-[#f0f0ff]">Dashboard</h1>
-            <p className="text-sm text-[#55556a] mt-0.5">
-              Bienvenue, {user?.name ?? user?.email} 👋
-            </p>
+            <h1 className="text-3xl font-bold text-[#f0f0ff]">Dashboard</h1>
+            <p className="text-[#8888aa] mt-1">Bienvenue, {user?.name ?? user?.email} 👋</p>
           </div>
-          <Button onClick={() => setShowModal(true)}>+ Nouveau projet</Button>
+          <Button size="lg" onClick={() => setShowModal(true)}>
+            + Nouveau projet
+          </Button>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4 mb-10">
           {[
-            { label: 'Projets', value: projects.length },
-            { label: 'Tâches totales', value: totalTasks },
-            { label: 'Terminées', value: doneTasks },
+            { label: 'Projets actifs', value: activeProjects.length, color: 'text-indigo-400' },
+            { label: 'Tâches totales', value: totalTasks, color: 'text-[#f0f0ff]' },
+            { label: 'Terminées', value: doneTasks, color: 'text-green-400' },
             {
               label: 'Membres',
               value: [...new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)))].length,
+              color: 'text-amber-400',
             },
           ].map((s) => (
-            <div key={s.label} className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-4">
-              <div className="text-xs text-[#55556a] mb-1">{s.label}</div>
-              <div className="text-2xl font-bold text-[#f0f0ff]">{s.value}</div>
+            <div key={s.label} className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5">
+              <div className="text-lg text-[#8888aa] mb-2">{s.label}</div>
+              <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
             </div>
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-[#f0f0ff]">Mes projets</h2>
-          <span className="text-xs text-[#55556a]">{projects.length} projet(s)</span>
+        {/* Projects */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-2xl font-semibold text-[#f0f0ff]">Mes projets</h2>
+          <span className="text-lg text-[#8888aa]">{projects.length} projet(s)</span>
         </div>
 
         {projects.length === 0 ? (
           <div className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-16 text-center">
-            <p className="text-[#55556a] text-sm">Aucun projet — créez-en un !</p>
+            <p className="text-[#8888aa] text-base">Aucun projet — créez-en un !</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project) => {
               const done = project.tasks.filter((t) => t.status === 'DONE').length;
               const total = project.tasks.length;
@@ -266,32 +265,37 @@ export default function DashboardPage() {
                 <div
                   key={project.id}
                   onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                  className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 cursor-pointer hover:border-[#3a3a50] transition-all group"
+                  className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 cursor-pointer hover:border-[#3a3a50] transition-all group"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-[#f0f0ff] group-hover:text-indigo-400 transition-colors">
+                    <h3 className="text-xl font-semibold text-[#f0f0ff] group-hover:text-indigo-400 transition-colors">
                       {project.name}
                     </h3>
                     <Badge variant={pct === 100 ? 'success' : 'purple'}>
                       {pct === 100 ? 'Terminé' : 'En cours'}
                     </Badge>
                   </div>
+
                   {project.description && (
-                    <p className="text-xs text-[#55556a] mb-4 line-clamp-2">
+                    <p className="text-md text-[#8888aa] mb-4 line-clamp-2">
                       {project.description}
                     </p>
                   )}
-                  <div className="flex gap-0.5 mb-4 h-1">
-                    {project.tasks.slice(0, 20).map((t) => (
-                      <div
-                        key={t.id}
-                        className={`flex-1 rounded-full ${STATUS_COLORS[t.status] ?? 'bg-[#2a2a3a]'}`}
-                      />
-                    ))}
-                    {project.tasks.length === 0 && (
+
+                  <div className="flex gap-0.5 mb-4 h-1.5">
+                    {project.tasks.length > 0 ? (
+                      <>
+                        <div
+                          className="rounded-full bg-green-500 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                        <div className="rounded-full bg-[#2a2a3a] flex-1" />
+                      </>
+                    ) : (
                       <div className="flex-1 rounded-full bg-[#2a2a3a]" />
                     )}
                   </div>
+
                   <div className="flex items-center justify-between">
                     <div className="flex -space-x-1.5">
                       {project.members.slice(0, 4).map((m) => (
@@ -300,7 +304,7 @@ export default function DashboardPage() {
                         </div>
                       ))}
                     </div>
-                    <span className="text-xs text-[#55556a]">
+                    <span className="text-md text-[#8888aa]">
                       {done}/{total} tâches
                     </span>
                   </div>
