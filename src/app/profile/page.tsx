@@ -156,7 +156,13 @@ export default function ProfilePage() {
       const updated = (data as { updateAvatar: MeResult }).updateAvatar;
       setAvatar(updated.avatar ?? null);
       const token = localStorage.getItem('token') ?? '';
-      login(token, updated);
+      const userToSave = {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        avatar: updated.avatar ?? null,
+      };
+      login(token, userToSave);
     } catch (err) {
       console.error(err);
     } finally {

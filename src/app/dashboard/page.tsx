@@ -79,7 +79,10 @@ export default function DashboardPage() {
     }
     const { initFromStorage } = useAuthStore.getState();
     initFromStorage();
-    void fetchProjects();
+    // Force un petit délai pour que Zustand ait le temps de mettre à jour
+    setTimeout(() => {
+      void fetchProjects();
+    }, 0);
   }, []);
 
   const fetchProjects = async () => {
@@ -203,7 +206,7 @@ export default function DashboardPage() {
 
         <div className="p-4 border-t border-[#2a2a3a]">
           <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
+            <Avatar name={user?.name ?? user?.email ?? 'U'} avatar={user?.avatar} size="sm" />{' '}
             <div className="min-w-0">
               <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
