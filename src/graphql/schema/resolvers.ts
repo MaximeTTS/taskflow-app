@@ -50,6 +50,7 @@ export const resolvers = {
             include: {
               assignee: true,
               creator: true,
+              images: true,
             },
           },
         },
@@ -76,6 +77,7 @@ export const resolvers = {
           project: true,
           assignee: true,
           creator: true,
+          images: true,
         },
       });
       if (!task) return null;
@@ -118,6 +120,59 @@ export const resolvers = {
       return { token, user };
     },
 
+    updateProfile: async (
+      _: unknown,
+      args: { input: { name?: string; email?: string } },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      const existingUser = args.input.email
+        ? await prisma.user.findUnique({
+            where: { email: args.input.email },
+          })
+        : null;
+
+      if (existingUser && existingUser.id !== context.user.id) {
+        throw new Error('Cet email est déjà utilisé');
+      }
+
+      return prisma.user.update({
+        where: { id: context.user.id },
+        data: {
+          name: args.input.name ?? undefined,
+          email: args.input.email ?? undefined,
+        },
+      });
+    },
+
+    changePassword: async (
+      _: unknown,
+      args: { input: { currentPassword: string; newPassword: string } },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      const user = await prisma.user.findUnique({
+        where: { id: context.user.id },
+      });
+
+      if (!user) throw new Error('Utilisateur introuvable');
+
+      const isValid = await verifyPassword(args.input.currentPassword, user.password);
+
+      if (!isValid) throw new Error('Mot de passe actuel incorrect');
+
+      const hashedPassword = await hashPassword(args.input.newPassword);
+
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { password: hashedPassword },
+      });
+
+      return true;
+    },
+
     createUser: async (
       _: unknown,
       args: { input: { email: string; name?: string; password: string } },
@@ -157,15 +212,45 @@ export const resolvers = {
       });
     },
 
-    // Nouvelle mutation — ajouter un membre
+    updateProject: async (
+      _: unknown,
+      args: { id: string; input: { name?: string; description?: string } },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+      await requireProjectRole(context.user.id, args.id, 'ADMIN');
+
+      return prisma.project.update({
+        where: { id: args.id },
+        data: {
+          name: args.input.name ?? undefined,
+          description: args.input.description ?? undefined,
+        },
+        include: {
+          owner: true,
+          members: { include: { user: true } },
+          tasks: true,
+        },
+      });
+    },
+
+    deleteProject: async (_: unknown, args: { id: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
+      await requireProjectRole(context.user.id, args.id, 'OWNER');
+
+      await prisma.project.delete({
+        where: { id: args.id },
+      });
+
+      return true;
+    },
+
     addMember: async (
       _: unknown,
       args: { projectId: string; email: string; role: string },
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
-
-      // Seul un OWNER ou ADMIN peut ajouter des membres
       await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
 
       const userToAdd = await prisma.user.findUnique({
@@ -202,6 +287,67 @@ export const resolvers = {
       });
     },
 
+    removeMember: async (
+      _: unknown,
+      args: { projectId: string; userId: string },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
+
+      const project = await prisma.project.findUnique({
+        where: { id: args.projectId },
+      });
+
+      if (project?.ownerId === args.userId) {
+        throw new Error("Impossible d'expulser le propriétaire du projet");
+      }
+
+      await prisma.projectMember.delete({
+        where: {
+          userId_projectId: {
+            userId: args.userId,
+            projectId: args.projectId,
+          },
+        },
+      });
+
+      return true;
+    },
+
+    updateMemberRole: async (
+      _: unknown,
+      args: { projectId: string; userId: string; role: string },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+      await requireProjectRole(context.user.id, args.projectId, 'OWNER');
+
+      const project = await prisma.project.findUnique({
+        where: { id: args.projectId },
+      });
+
+      if (project?.ownerId === args.userId) {
+        throw new Error('Impossible de changer le rôle du propriétaire');
+      }
+
+      return prisma.projectMember.update({
+        where: {
+          userId_projectId: {
+            userId: args.userId,
+            projectId: args.projectId,
+          },
+        },
+        data: {
+          role: args.role as 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER',
+        },
+        include: {
+          user: true,
+          project: true,
+        },
+      });
+    },
+
     createTask: async (
       _: unknown,
       args: {
@@ -215,8 +361,6 @@ export const resolvers = {
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
-
-      // Seul un MEMBER ou plus peut créer des tâches
       await requireProjectRole(context.user.id, args.input.projectId, 'MEMBER');
 
       return prisma.task.create({
@@ -244,6 +388,7 @@ export const resolvers = {
           description?: string;
           status?: string;
           priority?: string;
+          dueDate?: string;
           assigneeId?: string;
         };
       },
@@ -254,8 +399,6 @@ export const resolvers = {
         where: { id: args.id },
       });
       if (!task) throw new Error('Tâche introuvable');
-
-      // Seul un MEMBER ou plus peut modifier des tâches
       await requireProjectRole(context.user.id, task.projectId, 'MEMBER');
 
       return prisma.task.update({
@@ -264,10 +407,14 @@ export const resolvers = {
           title: args.input.title ?? undefined,
           description: args.input.description ?? undefined,
           assigneeId: args.input.assigneeId ?? undefined,
-          status:
-            (args.input.status as 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELLED') ??
-            undefined,
-          priority: (args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT') ?? undefined,
+          status: args.input.status as
+            | 'TODO'
+            | 'IN_PROGRESS'
+            | 'IN_REVIEW'
+            | 'DONE'
+            | 'CANCELLED'
+            | undefined,
+          priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
         },
         include: {
           project: true,
@@ -283,11 +430,57 @@ export const resolvers = {
         where: { id: args.id },
       });
       if (!task) throw new Error('Tâche introuvable');
-
-      // Seul un ADMIN ou plus peut supprimer des tâches
       await requireProjectRole(context.user.id, task.projectId, 'ADMIN');
 
       await prisma.task.delete({ where: { id: args.id } });
+      return true;
+    },
+    uploadTaskImage: async (
+      _: unknown,
+      args: { taskId: string; base64Image: string },
+      context: Context,
+    ) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      const task = await prisma.task.findUnique({
+        where: { id: args.taskId },
+      });
+
+      if (!task) throw new Error('Tâche introuvable');
+
+      await requireProjectRole(context.user.id, task.projectId, 'MEMBER');
+
+      const { uploadImage } = await import('@/lib/cloudinary');
+      const { url, publicId } = await uploadImage(args.base64Image, 'taskflow/tasks');
+
+      return prisma.taskImage.create({
+        data: {
+          url,
+          publicId,
+          taskId: args.taskId,
+        },
+      });
+    },
+
+    deleteTaskImage: async (_: unknown, args: { imageId: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      const image = await prisma.taskImage.findUnique({
+        where: { id: args.imageId },
+        include: { task: true },
+      });
+
+      if (!image) throw new Error('Image introuvable');
+
+      await requireProjectRole(context.user.id, image.task.projectId, 'MEMBER');
+
+      const { deleteImage } = await import('@/lib/cloudinary');
+      await deleteImage(image.publicId);
+
+      await prisma.taskImage.delete({
+        where: { id: args.imageId },
+      });
+
       return true;
     },
   },

@@ -69,8 +69,21 @@ model Task {
   assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   creatorId  String
   creator    User    @relation("TaskCreator", fields: [creatorId], references: [id])
+  images     TaskImage[]
 
   @@map("tasks")
+}
+
+model TaskImage {
+  id        String   @id @default(cuid())
+  url       String
+  publicId  String
+  createdAt DateTime @default(now())
+
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_images")
 }
 
 enum MemberRole {

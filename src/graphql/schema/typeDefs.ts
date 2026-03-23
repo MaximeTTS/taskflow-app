@@ -39,6 +39,14 @@ export const typeDefs = gql`
     project: Project!
     assignee: User
     creator: User!
+    images: [TaskImage!]!
+  }
+
+  type TaskImage {
+    id: ID!
+    url: String!
+    publicId: String!
+    createdAt: String!
   }
 
   # Nouveau type pour la réponse auth
@@ -86,15 +94,24 @@ export const typeDefs = gql`
 
     # Users
     createUser(input: CreateUserInput!): User!
+    updateProfile(input: UpdateProfileInput!): User!
+    changePassword(input: ChangePasswordInput!): Boolean!
 
     # Projects
     createProject(input: CreateProjectInput!): Project!
+    updateProject(id: ID!, input: UpdateProjectInput!): Project!
+    deleteProject(id: ID!): Boolean!
     addMember(projectId: ID!, email: String!, role: MemberRole!): ProjectMember!
+    removeMember(projectId: ID!, userId: ID!): Boolean!
+    updateMemberRole(projectId: ID!, userId: ID!, role: MemberRole!): ProjectMember!
 
     # Tasks
     createTask(input: CreateTaskInput!): Task!
     updateTask(id: ID!, input: UpdateTaskInput!): Task!
     deleteTask(id: ID!): Boolean!
+
+    uploadTaskImage(taskId: ID!, base64Image: String!): TaskImage!
+    deleteTaskImage(imageId: ID!): Boolean!
   }
 
   input RegisterInput {
@@ -137,5 +154,20 @@ export const typeDefs = gql`
     priority: Priority
     dueDate: String
     assigneeId: String
+  }
+
+  input UpdateProjectInput {
+    name: String
+    description: String
+  }
+
+  input UpdateProfileInput {
+    name: String
+    email: String
+  }
+
+  input ChangePasswordInput {
+    currentPassword: String!
+    newPassword: String!
   }
 `;
