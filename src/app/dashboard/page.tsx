@@ -149,6 +149,7 @@ export default function DashboardPage() {
           <div className="text-[10px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-2">
             Menu
           </div>
+
           <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
@@ -164,12 +165,30 @@ export default function DashboardPage() {
             </svg>
             Dashboard
           </button>
+
+          <button
+            onClick={() => router.push('/profile')}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Profil
+          </button>
+
           <button
             onClick={() => {
               logout();
               router.push('/login');
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mt-auto"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors"
           >
             <svg
               className="w-4 h-4"
@@ -201,7 +220,6 @@ export default function DashboardPage() {
 
       {/* Main */}
       <main className="ml-56 flex-1 p-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-xl font-bold text-[#f0f0ff]">Dashboard</h1>
@@ -212,7 +230,6 @@ export default function DashboardPage() {
           <Button onClick={() => setShowModal(true)}>+ Nouveau projet</Button>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Projets', value: projects.length },
@@ -230,7 +247,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Projects */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-[#f0f0ff]">Mes projets</h2>
           <span className="text-xs text-[#55556a]">{projects.length} projet(s)</span>
@@ -246,7 +262,6 @@ export default function DashboardPage() {
               const done = project.tasks.filter((t) => t.status === 'DONE').length;
               const total = project.tasks.length;
               const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
               return (
                 <div
                   key={project.id}
@@ -261,14 +276,11 @@ export default function DashboardPage() {
                       {pct === 100 ? 'Terminé' : 'En cours'}
                     </Badge>
                   </div>
-
                   {project.description && (
                     <p className="text-xs text-[#55556a] mb-4 line-clamp-2">
                       {project.description}
                     </p>
                   )}
-
-                  {/* Mini task bars */}
                   <div className="flex gap-0.5 mb-4 h-1">
                     {project.tasks.slice(0, 20).map((t) => (
                       <div
@@ -280,7 +292,6 @@ export default function DashboardPage() {
                       <div className="flex-1 rounded-full bg-[#2a2a3a]" />
                     )}
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="flex -space-x-1.5">
                       {project.members.slice(0, 4).map((m) => (
@@ -300,7 +311,6 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Modal nouveau projet */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Nouveau projet">
         <form onSubmit={handleCreate} className="flex flex-col gap-4">
           <Input
