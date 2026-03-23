@@ -208,6 +208,14 @@ const PRIORITY_BORDER: Record<string, string> = {
 const SELECT_CLASS =
   'w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] outline-none focus:border-indigo-500 appearance-none pr-10';
 
+const SelectArrow = () => (
+  <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  </div>
+);
+
 export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
@@ -218,29 +226,41 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // States nouvelle tâche
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newPriority, setNewPriority] = useState('MEDIUM');
+  const [newStatus, setNewStatus] = useState('TODO');
+  const [newAssignee, setNewAssignee] = useState('');
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const newFileInputRef = useRef<HTMLInputElement>(null);
 
+  // States tâche sélectionnée
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingDesc, setEditingDesc] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
+
+  // States membres
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState('MEMBER');
   const [addingMember, setAddingMember] = useState(false);
 
+  // States projet
   const [showEditProject, setShowEditProject] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [savingProject, setSavingProject] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
 
+  // Lightbox
   const [lightboxImages, setLightboxImages] = useState<TaskImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -270,6 +290,15 @@ export default function ProjectPage() {
     }
   };
 
+  const handleNewImageSelect = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewImages((prev) => [...prev, file]);
+      setNewImagePreviews((prev) => [...prev, reader.result as string]);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -277,20 +306,42 @@ export default function ProjectPage() {
     const cu = userStr ? (JSON.parse(userStr) as { id: string }) : null;
     if (!cu?.id) return;
     try {
-      await apolloClient.mutate({
+      const { data } = await apolloClient.mutate({
         mutation: CREATE_TASK,
         variables: {
           input: {
             title: newTitle,
             description: newDesc,
             priority: newPriority,
+            status: newStatus,
             projectId,
             creatorId: cu.id,
+            assigneeId: newAssignee === '' ? undefined : newAssignee,
           },
         },
       });
+      const createdTask = (data as { createTask: { id: string } }).createTask;
+
+      for (const file of newImages) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        await apolloClient.mutate({
+          mutation: UPLOAD_IMAGE,
+          variables: { taskId: createdTask.id, base64Image: base64 },
+        });
+      }
+
       setNewTitle('');
       setNewDesc('');
+      setNewPriority('MEDIUM');
+      setNewStatus('TODO');
+      setNewAssignee('');
+      setNewImages([]);
+      setNewImagePreviews([]);
       setShowTaskModal(false);
       void fetchProject();
     } catch (err) {
@@ -531,7 +582,7 @@ export default function ProjectPage() {
           </button>
         </nav>
 
-        {/* Membres dans la sidebar */}
+        {/* Membres sidebar */}
         <div className="p-3 border-t border-[#2a2a3a] mt-2">
           <div className="flex items-center justify-between px-2 mb-3">
             <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider">
@@ -551,7 +602,7 @@ export default function ProjectPage() {
                 className="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-[#1e1e2a] group"
               >
                 <div className="flex items-center gap-2">
-                  <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />{' '}
+                  <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
                   </div>
@@ -584,7 +635,7 @@ export default function ProjectPage() {
 
         <div className="p-4 border-t border-[#2a2a3a] mt-auto">
           <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />{' '}
+            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
             <div className="min-w-0">
               <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
@@ -597,7 +648,6 @@ export default function ProjectPage() {
 
       {/* Main */}
       <main className="ml-60 flex-1 flex flex-col">
-        {/* Header */}
         {/* Header */}
         <div className="border-b border-[#2a2a3a] px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -620,7 +670,6 @@ export default function ProjectPage() {
               {project.description && (
                 <p className="text-sm text-[#8888aa] mt-0.5">{project.description}</p>
               )}
-              {/* Boutons éditer + supprimer sous la description */}
               <div className="flex items-center gap-3 mt-2">
                 <button
                   onClick={() => {
@@ -688,7 +737,10 @@ export default function ProjectPage() {
                     {tasks.map((task) => (
                       <div
                         key={task.id}
-                        onClick={() => setSelectedTask(task)}
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setEditingDesc(task.description ?? '');
+                        }}
                         className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group`}
                       >
                         <p className="text-lg font-semibold text-[#ffffff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors">
@@ -726,13 +778,11 @@ export default function ProjectPage() {
                             {PRIORITY_LABEL[task.priority] ?? task.priority}
                           </Badge>
                           {task.assignee ? (
-                            <div className="flex items-center gap-1">
-                              <Avatar
-                                name={task.assignee.name}
-                                avatar={task.assignee.avatar}
-                                size="sm"
-                              />{' '}
-                            </div>
+                            <Avatar
+                              name={task.assignee.name}
+                              avatar={task.assignee.avatar}
+                              size="sm"
+                            />
                           ) : (
                             <span className="text-[14px] text-[#80808f]">Non assigné</span>
                           )}
@@ -754,7 +804,7 @@ export default function ProjectPage() {
 
       {/* Modal nouvelle tâche */}
       <Modal open={showTaskModal} onClose={() => setShowTaskModal(false)} title="Nouvelle tâche">
-        <form onSubmit={handleCreateTask} className="flex flex-col gap-4">
+        <form onSubmit={handleCreateTask} className="flex flex-col gap-5">
           <Input
             label="Titre"
             value={newTitle}
@@ -768,8 +818,9 @@ export default function ProjectPage() {
             onChange={(e) => setNewDesc(e.target.value)}
             placeholder="Description (optionnel)"
           />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#8888aa]">Priorité</label>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-md font-medium text-[#8888aa]">Priorité</label>
             <div className="relative">
               <select
                 value={newPriority}
@@ -781,21 +832,102 @@ export default function ProjectPage() {
                 <option value="HIGH">Haute</option>
                 <option value="URGENT">Urgente</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
-                <svg
-                  className="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </div>
+              <SelectArrow />
             </div>
           </div>
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" type="button" onClick={() => setShowTaskModal(false)}>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-md font-medium text-[#8888aa]">Statut</label>
+            <div className="relative">
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                {COLUMNS.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <SelectArrow />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
+            <div className="relative">
+              <select
+                value={newAssignee}
+                onChange={(e) => setNewAssignee(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">Non assigné</option>
+                {project.members.map((m) => (
+                  <option key={m.user.id} value={m.user.id}>
+                    {m.user.name}
+                  </option>
+                ))}
+              </select>
+              <SelectArrow />
+            </div>
+          </div>
+
+          {/* Images */}
+          <div className="flex flex-col gap-3">
+            <label className="text-md font-medium text-[#8888aa]">Images</label>
+            {newImagePreviews.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {newImagePreviews.map((preview, idx) => (
+                  <div key={idx} className="relative group">
+                    <img
+                      src={preview}
+                      alt=""
+                      className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewImages((prev) => prev.filter((_, i) => i !== idx));
+                        setNewImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+                      }}
+                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              ref={newFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleNewImageSelect(e.target.files[0]);
+              }}
+            />
+            <Button
+              variant="secondary"
+              size="md"
+              type="button"
+              onClick={() => newFileInputRef.current?.click()}
+            >
+              + Ajouter une image
+            </Button>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2 border-t border-[#2a2a3a]">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                setShowTaskModal(false);
+                setNewImages([]);
+                setNewImagePreviews([]);
+              }}
+            >
               Annuler
             </Button>
             <Button type="submit" loading={creating}>
@@ -823,19 +955,47 @@ export default function ProjectPage() {
                     name={selectedTask.assignee.name}
                     avatar={selectedTask.assignee.avatar}
                     size="sm"
-                  />{' '}
+                  />
                   <span className="text-base text-[#8888aa]">{selectedTask.assignee.name}</span>
                 </div>
               )}
             </div>
 
-            {selectedTask.description && (
-              <p className="text-lg text-[#FFFF] leading-relaxed break-words">
-                {selectedTask.description}
-              </p>
-            )}
+            {/* Description éditable */}
+            <div className="flex flex-col gap-2">
+              <label className="text-md font-medium text-[#8888aa]">Description</label>
+              <textarea
+                value={editingDesc}
+                onChange={(e) => setEditingDesc(e.target.value)}
+                placeholder="Ajouter une description..."
+                rows={3}
+                className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none focus:border-indigo-500 resize-none transition-colors"
+              />
+              {editingDesc !== (selectedTask.description ?? '') && (
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDesc(selectedTask.description ?? '')}
+                    className="text-xs text-[#55556a] hover:text-[#f0f0ff] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSavingDesc(true);
+                      await handleUpdateTask(selectedTask.id, { description: editingDesc });
+                      setSelectedTask({ ...selectedTask, description: editingDesc });
+                      setSavingDesc(false);
+                    }}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    {savingDesc ? 'Sauvegarde...' : 'Sauvegarder'}
+                  </button>
+                </div>
+              )}
+            </div>
 
-            {/* Priorité */}
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Priorité</label>
               <div className="relative">
@@ -852,21 +1012,10 @@ export default function ProjectPage() {
                   <option value="HIGH">Haute</option>
                   <option value="URGENT">Urgente</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
+                <SelectArrow />
               </div>
             </div>
 
-            {/* Statut */}
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Statut</label>
               <div className="relative">
@@ -884,21 +1033,10 @@ export default function ProjectPage() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
+                <SelectArrow />
               </div>
             </div>
 
-            {/* Assigné à */}
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
               <div className="relative">
@@ -924,21 +1062,10 @@ export default function ProjectPage() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
+                <SelectArrow />
               </div>
             </div>
 
-            {/* Images */}
             <div className="flex flex-col gap-3">
               <label className="text-md font-medium text-[#8888aa]">Images</label>
               {selectedTask.images.length > 0 && (
@@ -1026,17 +1153,7 @@ export default function ProjectPage() {
                 <option value="MEMBER">Member</option>
                 <option value="VIEWER">Viewer</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8888aa]">
-                <svg
-                  className="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </div>
+              <SelectArrow />
             </div>
           </div>
           <div className="flex gap-3 justify-end">
@@ -1093,7 +1210,6 @@ export default function ProjectPage() {
           >
             ×
           </button>
-
           {lightboxIndex > 0 && (
             <button
               className="absolute left-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
@@ -1105,14 +1221,12 @@ export default function ProjectPage() {
               ‹
             </button>
           )}
-
           <img
             src={lightboxImages[lightboxIndex]?.url}
             alt=""
             className="max-w-4xl max-h-[80vh] rounded-xl object-contain mx-20"
             onClick={(e) => e.stopPropagation()}
           />
-
           {lightboxIndex < lightboxImages.length - 1 && (
             <button
               className="absolute right-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
@@ -1124,7 +1238,6 @@ export default function ProjectPage() {
               ›
             </button>
           )}
-
           <div className="absolute bottom-6 text-white text-sm opacity-60">
             {lightboxIndex + 1} / {lightboxImages.length}
           </div>
