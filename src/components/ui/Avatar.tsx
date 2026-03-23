@@ -1,5 +1,6 @@
 type AvatarProps = {
   name: string;
+  avatar?: string | null;
   size?: 'sm' | 'md' | 'lg';
 };
 
@@ -11,14 +12,23 @@ const sizes = {
 
 const colors = ['bg-indigo-500', 'bg-green-500', 'bg-amber-500', 'bg-blue-500', 'bg-pink-500'];
 
-export function Avatar({ name, size = 'md' }: AvatarProps) {
+export function Avatar({ name, avatar, size = 'md' }: AvatarProps) {
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={name}
+        className={`${sizes[size]} rounded-full object-cover flex-shrink-0`}
+      />
+    );
+  }
+
   const initials = name
     .split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
-
   const color = colors[name.charCodeAt(0) % colors.length];
 
   return (

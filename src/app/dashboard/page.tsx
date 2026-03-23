@@ -33,6 +33,7 @@ const GET_PROJECTS = gql`
         user {
           id
           name
+          avatar
         }
       }
     }
@@ -50,7 +51,7 @@ const CREATE_PROJECT = gql`
 `;
 
 type Task = { id: string; status: string };
-type Member = { id: string; role: string; user: { id: string; name: string } };
+type Member = { id: string; role: string; user: { id: string; name: string; avatar?: string } };
 type Project = {
   id: string;
   name: string;
@@ -300,7 +301,7 @@ export default function DashboardPage() {
                     <div className="flex -space-x-1.5">
                       {project.members.slice(0, 4).map((m) => (
                         <div key={m.id} className="ring-2 ring-[#16161f] rounded-full">
-                          <Avatar name={m.user.name} size="sm" />
+                          <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />
                         </div>
                       ))}
                     </div>

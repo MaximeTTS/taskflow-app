@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
@@ -25,15 +25,29 @@ const CHANGE_PASSWORD = gql`
   }
 `;
 
+const UPDATE_AVATAR = gql`
+  mutation UpdateAvatar($base64Image: String!) {
+    updateAvatar(base64Image: $base64Image) {
+      id
+      name
+      email
+      avatar
+    }
+  }
+`;
+
 const GET_ME = gql`
   query Me {
     me {
       id
       name
       email
+      avatar
     }
   }
 `;
+
+type MeResult = { id: string; name: string; email: string; avatar?: string };
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -41,6 +55,7 @@ export default function ProfilePage() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
@@ -51,6 +66,9 @@ export default function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) {
@@ -63,9 +81,10 @@ export default function ProfilePage() {
   const fetchMe = async () => {
     try {
       const { data } = await apolloClient.query({ query: GET_ME, fetchPolicy: 'network-only' });
-      const me = (data as { me: { id: string; name: string; email: string } }).me;
+      const me = (data as { me: MeResult }).me;
       setName(me.name ?? '');
       setEmail(me.email);
+      setAvatar(me.avatar ?? null);
     } catch (err) {
       console.error(err);
     }
@@ -81,8 +100,7 @@ export default function ProfilePage() {
         mutation: UPDATE_PROFILE,
         variables: { input: { name, email } },
       });
-      const updated = (data as { updateProfile: { id: string; name: string; email: string } })
-        .updateProfile;
+      const updated = (data as { updateProfile: MeResult }).updateProfile;
       const token = localStorage.getItem('token') ?? '';
       login(token, updated);
       setProfileSuccess('Profil mis à jour !');
@@ -122,6 +140,30 @@ export default function ProfilePage() {
     }
   };
 
+  const handleUploadAvatar = async (file: File) => {
+    setUploadingAvatar(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const { data } = await apolloClient.mutate({
+        mutation: UPDATE_AVATAR,
+        variables: { base64Image: base64 },
+      });
+      const updated = (data as { updateAvatar: MeResult }).updateAvatar;
+      setAvatar(updated.avatar ?? null);
+      const token = localStorage.getItem('token') ?? '';
+      login(token, updated);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex">
       {/* Sidebar */}
@@ -131,12 +173,10 @@ export default function ProfilePage() {
             Task<span className="text-indigo-400">Flow</span>
           </div>
         </div>
-
         <nav className="p-3 flex-1">
           <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
             Menu
           </div>
-
           <button
             onClick={() => router.push('/dashboard')}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
@@ -155,7 +195,6 @@ export default function ProfilePage() {
             </svg>
             Dashboard
           </button>
-
           <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
@@ -169,7 +208,6 @@ export default function ProfilePage() {
             </svg>
             Profil
           </button>
-
           <button
             onClick={() => {
               logout();
@@ -191,10 +229,13 @@ export default function ProfilePage() {
             Déconnexion
           </button>
         </nav>
-
         <div className="p-4 border-t border-[#2a2a3a]">
           <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
+            {avatar ? (
+              <img src={avatar} alt="avatar" className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
+            )}
             <div className="min-w-0">
               <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
@@ -234,10 +275,66 @@ export default function ProfilePage() {
 
         {/* Avatar + infos */}
         <div className="w-full max-w-2xl bg-[#16161f] border border-[#2a2a3a] rounded-xl p-6 mb-6 flex items-center gap-5">
-          <Avatar name={user?.name ?? user?.email ?? 'U'} size="lg" />
+          <div className="relative">
+            {avatar ? (
+              <img
+                src={avatar}
+                alt="avatar"
+                className="w-16 h-16 rounded-full object-cover border-2 border-[#2a2a3a]"
+              />
+            ) : (
+              <Avatar name={user?.name ?? user?.email ?? 'U'} size="lg" />
+            )}
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              className="absolute -bottom-1 -right-1 bg-indigo-500 hover:bg-indigo-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+            >
+              {uploadingAvatar ? (
+                <svg className="animate-spin w-3 h-3 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3 h-3 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.[0]) void handleUploadAvatar(e.target.files[0]);
+              }}
+            />
+          </div>
           <div>
             <div className="text-lg font-semibold text-[#f0f0ff]">{user?.name ?? 'Sans nom'}</div>
             <div className="text-sm text-[#8888aa] mt-0.5">{user?.email}</div>
+            <div className="text-xs text-[#55556a] mt-1">
+              Cliquez sur l&apos;avatar pour le modifier
+            </div>
           </div>
         </div>
 

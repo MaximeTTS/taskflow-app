@@ -5,6 +5,7 @@ export const typeDefs = gql`
     id: ID!
     email: String!
     name: String
+    avatar: String
     createdAt: String!
     ownedProjects: [Project!]!
     assignedTasks: [Task!]!
@@ -95,6 +96,7 @@ export const typeDefs = gql`
     # Users
     createUser(input: CreateUserInput!): User!
     updateProfile(input: UpdateProfileInput!): User!
+    updateAvatar(base64Image: String!): User!
     changePassword(input: ChangePasswordInput!): Boolean!
 
     # Projects

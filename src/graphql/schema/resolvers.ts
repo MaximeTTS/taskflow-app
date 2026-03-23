@@ -187,6 +187,18 @@ export const resolvers = {
       });
     },
 
+    updateAvatar: async (_: unknown, args: { base64Image: string }, context: Context) => {
+      if (!context.user) throw new Error('Non autorisé');
+
+      const { uploadImage } = await import('@/lib/cloudinary');
+      const { url } = await uploadImage(args.base64Image, 'taskflow/avatars');
+
+      return prisma.user.update({
+        where: { id: context.user.id },
+        data: { avatar: url },
+      });
+    },
+
     createProject: async (
       _: unknown,
       args: { input: { name: string; description?: string } },

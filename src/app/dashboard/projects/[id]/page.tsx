@@ -29,6 +29,7 @@ const GET_PROJECT = gql`
           id
           name
           email
+          avatar
         }
       }
       tasks {
@@ -41,6 +42,7 @@ const GET_PROJECT = gql`
         assignee {
           id
           name
+          avatar
         }
         creator {
           id
@@ -149,7 +151,7 @@ const DELETE_IMAGE = gql`
 `;
 
 type TaskImage = { id: string; url: string; publicId: string };
-type Assignee = { id: string; name: string };
+type Assignee = { id: string; name: string; avatar?: string };
 type Task = {
   id: string;
   title: string;
@@ -161,7 +163,11 @@ type Task = {
   creator: { id: string; name: string };
   images: TaskImage[];
 };
-type Member = { id: string; role: string; user: { id: string; name: string; email: string } };
+type Member = {
+  id: string;
+  role: string;
+  user: { id: string; name: string; email: string; avatar?: string };
+};
 type Project = {
   id: string;
   name: string;
@@ -545,7 +551,7 @@ export default function ProjectPage() {
                 className="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-[#1e1e2a] group"
               >
                 <div className="flex items-center gap-2">
-                  <Avatar name={m.user.name} size="sm" />
+                  <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />{' '}
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
                   </div>
@@ -578,7 +584,7 @@ export default function ProjectPage() {
 
         <div className="p-4 border-t border-[#2a2a3a] mt-auto">
           <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />
+            <Avatar name={user?.name ?? user?.email ?? 'U'} size="sm" />{' '}
             <div className="min-w-0">
               <div className="text-sm font-medium text-[#f0f0ff] truncate">
                 {user?.name ?? 'Utilisateur'}
@@ -721,7 +727,11 @@ export default function ProjectPage() {
                           </Badge>
                           {task.assignee ? (
                             <div className="flex items-center gap-1">
-                              <Avatar name={task.assignee.name} size="sm" />
+                              <Avatar
+                                name={task.assignee.name}
+                                avatar={task.assignee.avatar}
+                                size="sm"
+                              />{' '}
                             </div>
                           ) : (
                             <span className="text-[14px] text-[#80808f]">Non assigné</span>
@@ -809,7 +819,11 @@ export default function ProjectPage() {
               </Badge>
               {selectedTask.assignee && (
                 <div className="flex items-center gap-2">
-                  <Avatar name={selectedTask.assignee.name} size="sm" />
+                  <Avatar
+                    name={selectedTask.assignee.name}
+                    avatar={selectedTask.assignee.avatar}
+                    size="sm"
+                  />{' '}
                   <span className="text-base text-[#8888aa]">{selectedTask.assignee.name}</span>
                 </div>
               )}
