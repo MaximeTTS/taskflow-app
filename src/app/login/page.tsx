@@ -5,6 +5,8 @@ import { gql } from 'graphql-tag';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { apolloClient } from '@/lib/apollo-client';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import Link from 'next/link';
 
 const LOGIN_MUTATION = gql`
@@ -32,20 +34,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const { data } = await apolloClient.mutate({
         mutation: LOGIN_MUTATION,
         variables: { input: { email, password } },
       });
-
       const result = data as {
-        login: {
-          token: string;
-          user: { id: string; email: string; name: string };
-        };
+        login: { token: string; user: { id: string; email: string; name: string } };
       };
-
       login(result.login.token, result.login.user);
       router.push('/dashboard');
     } catch (err) {
@@ -56,57 +52,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">TaskFlow</h1>
-          <p className="text-gray-400 mt-2">Connectez-vous à votre compte</p>
+          <div className="text-2xl font-bold text-[#f0f0ff] mb-2">
+            Task<span className="text-indigo-400">Flow</span>
+          </div>
+          <p className="text-sm text-[#8888aa]">Connectez-vous à votre compte</p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-2xl p-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
                 <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
-                placeholder="vous@exemple.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-3 rounded-lg transition-colors"
-            >
-              {loading ? 'Connexion...' : 'Se connecter'}
-            </button>
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vous@exemple.com"
+              required
+            />
+            <Input
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+            <Button type="submit" loading={loading} className="w-full mt-2">
+              Se connecter
+            </Button>
           </form>
 
-          <p className="text-center text-gray-500 text-sm mt-6">
+          <p className="text-center text-[#55556a] text-sm mt-5">
             Pas encore de compte ?{' '}
-            <Link href="/register" className="text-blue-400 hover:text-blue-300">
+            <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
               S&apos;inscrire
             </Link>
           </p>
