@@ -76,6 +76,39 @@ const DELETE_TASK = gql`
   }
 `;
 
+const ADD_MEMBER = gql`
+  mutation AddMember($projectId: ID!, $email: String!, $role: MemberRole!) {
+    addMember(projectId: $projectId, email: $email, role: $role) {
+      id
+      role
+      user {
+        id
+        name
+        email
+      }
+    }
+  }
+`;
+
+const REMOVE_MEMBER = gql`
+  mutation RemoveMember($projectId: ID!, $userId: ID!) {
+    removeMember(projectId: $projectId, userId: $userId)
+  }
+`;
+
+const UPDATE_MEMBER_ROLE = gql`
+  mutation UpdateMemberRole($projectId: ID!, $userId: ID!, $role: MemberRole!) {
+    updateMemberRole(projectId: $projectId, userId: $userId, role: $role) {
+      id
+      role
+      user {
+        id
+        name
+      }
+    }
+  }
+`;
+
 type Assignee = { id: string; name: string };
 type Task = {
   id: string;
@@ -131,6 +164,19 @@ export default function ProjectPage() {
   const [newDesc, setNewDesc] = useState('');
   const [newPriority, setNewPriority] = useState('MEDIUM');
   const [creating, setCreating] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState('MEMBER');
+  const [addingMember, setAddingMember] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const u = JSON.parse(userStr) as { id: string };
+      setCurrentUserId(u.id);
+    }
+  }, []);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) {
@@ -201,6 +247,45 @@ export default function ProjectPage() {
     try {
       await apolloClient.mutate({ mutation: DELETE_TASK, variables: { id: taskId } });
       setSelectedTask(null);
+      void fetchProject();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddingMember(true);
+    try {
+      await apolloClient.mutate({
+        mutation: ADD_MEMBER,
+        variables: { projectId, email: memberEmail, role: memberRole },
+      });
+      setMemberEmail('');
+      setShowMemberModal(false);
+      void fetchProject();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    try {
+      await apolloClient.mutate({ mutation: REMOVE_MEMBER, variables: { projectId, userId } });
+      void fetchProject();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, role: string) => {
+    try {
+      await apolloClient.mutate({
+        mutation: UPDATE_MEMBER_ROLE,
+        variables: { projectId, userId, role },
+      });
       void fetchProject();
     } catch (err) {
       console.error(err);
@@ -290,7 +375,7 @@ export default function ProjectPage() {
         </div>
 
         {/* Kanban */}
-        <div className="flex-1 p-8 overflow-x-auto">
+        <div className="p-8 overflow-x-auto">
           <div className="grid grid-cols-4 gap-4 min-w-[800px]">
             {COLUMNS.map((col) => {
               const tasks = project.tasks.filter((t) => t.status === col.key);
@@ -299,7 +384,6 @@ export default function ProjectPage() {
                   key={col.key}
                   className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
                 >
-                  {/* Col header */}
                   <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
                     <div className={`w-2 h-2 rounded-full ${col.color}`} />
                     <span className="text-xs font-medium text-[#8888aa]">{col.label}</span>
@@ -307,8 +391,6 @@ export default function ProjectPage() {
                       {tasks.length}
                     </span>
                   </div>
-
-                  {/* Tasks */}
                   <div className="p-3 flex flex-col gap-2 flex-1">
                     {tasks.map((task) => (
                       <div
@@ -327,7 +409,6 @@ export default function ProjectPage() {
                         </div>
                       </div>
                     ))}
-
                     {tasks.length === 0 && (
                       <div className="flex-1 flex items-center justify-center py-8">
                         <p className="text-xs text-[#2a2a3a]">Aucune tâche</p>
@@ -337,6 +418,53 @@ export default function ProjectPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Section membres */}
+        <div className="px-8 pb-8">
+          <div className="bg-[#111118] border border-[#2a2a3a] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-[#f0f0ff]">Membres</h2>
+              <Button size="sm" onClick={() => setShowMemberModal(true)}>
+                + Inviter
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {project.members.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-3 p-3 bg-[#16161f] border border-[#2a2a3a] rounded-lg"
+                >
+                  <Avatar name={m.user.name} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
+                    <div className="text-xs text-[#55556a] truncate">{m.user.email}</div>
+                  </div>
+                  {m.user.id !== project.owner.id ? (
+                    <select
+                      value={m.role}
+                      onChange={(e) => void handleUpdateRole(m.user.id, e.target.value)}
+                      className="bg-[#2a2a3a] border border-[#3a3a50] rounded-lg px-2 py-1 text-xs text-[#f0f0ff] outline-none"
+                    >
+                      <option value="ADMIN">Admin</option>
+                      <option value="MEMBER">Member</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                  ) : (
+                    <Badge variant="purple">Owner</Badge>
+                  )}
+                  {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
+                    <button
+                      onClick={() => void handleRemoveMember(m.user.id)}
+                      className="text-[#55556a] hover:text-red-400 transition-colors text-lg leading-none ml-1"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </main>
@@ -400,13 +528,11 @@ export default function ProjectPage() {
                 </div>
               )}
             </div>
-
             {selectedTask.description && (
               <p className="text-sm text-[#8888aa] leading-relaxed break-words overflow-hidden">
                 {selectedTask.description}
               </p>
             )}
-
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[#8888aa]">Statut</label>
               <select
@@ -421,7 +547,6 @@ export default function ProjectPage() {
                 ))}
               </select>
             </div>
-
             <div className="flex justify-between pt-2 border-t border-[#2a2a3a]">
               <Button
                 variant="danger"
@@ -436,6 +561,44 @@ export default function ProjectPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal inviter membre */}
+      <Modal
+        open={showMemberModal}
+        onClose={() => setShowMemberModal(false)}
+        title="Inviter un membre"
+      >
+        <form onSubmit={handleAddMember} className="flex flex-col gap-4">
+          <Input
+            label="Email"
+            type="email"
+            value={memberEmail}
+            onChange={(e) => setMemberEmail(e.target.value)}
+            placeholder="alice@exemple.com"
+            required
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#8888aa]">Rôle</label>
+            <select
+              value={memberRole}
+              onChange={(e) => setMemberRole(e.target.value)}
+              className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-2.5 text-sm text-[#f0f0ff] outline-none focus:border-indigo-500"
+            >
+              <option value="ADMIN">Admin</option>
+              <option value="MEMBER">Member</option>
+              <option value="VIEWER">Viewer</option>
+            </select>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" type="button" onClick={() => setShowMemberModal(false)}>
+              Annuler
+            </Button>
+            <Button type="submit" loading={addingMember}>
+              Inviter
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
