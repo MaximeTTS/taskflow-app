@@ -449,11 +449,19 @@ export default function ProjectPage() {
   };
 
   const handleUpdateTask = async (taskId: string, input: Record<string, string | null>) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, ...input } : t)),
+      };
+    });
+
     try {
       await apolloClient.mutate({ mutation: UPDATE_TASK, variables: { id: taskId, input } });
-      void fetchProject();
     } catch (err) {
-      console.error(err);
+      console.error('Erreur lors de la sauvegarde :', err);
+      void fetchProject();
     }
   };
 
@@ -722,14 +730,22 @@ export default function ProjectPage() {
 
     const task = project.tasks.find((t) => t.id === activeId);
     if (task && task.status !== targetCol) {
+      setProject((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tasks: prev.tasks.map((t) => (t.id === activeId ? { ...t, status: targetCol! } : t)),
+        };
+      });
+
       try {
         await apolloClient.mutate({
           mutation: UPDATE_TASK,
           variables: { id: activeId, input: { status: targetCol } },
         });
-        void fetchProject();
       } catch (err) {
         console.error(err);
+        void fetchProject();
       }
     }
   };
