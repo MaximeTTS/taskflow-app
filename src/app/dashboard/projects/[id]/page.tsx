@@ -17,6 +17,29 @@ import {
   SidebarIcons,
 } from '@/components/layout/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// ─── GraphQL ───
 
 const GET_PROJECT = gql`
   query GetProject($id: ID!) {
@@ -157,6 +180,8 @@ const DELETE_IMAGE = gql`
   }
 `;
 
+// ─── Types ───
+
 type TaskImage = { id: string; url: string; publicId: string };
 type Assignee = { id: string; name: string; avatar?: string };
 type Task = {
@@ -184,6 +209,8 @@ type Project = {
   tasks: Task[];
 };
 
+// ─── Constants ───
+
 const COLUMNS = [
   { key: 'TODO', label: 'À faire', shortLabel: 'À faire', color: 'bg-[#2a2a3a]' },
   { key: 'IN_PROGRESS', label: 'En cours', shortLabel: 'En cours', color: 'bg-indigo-500' },
@@ -197,14 +224,12 @@ const PRIORITY_BADGE: Record<string, 'danger' | 'warning' | 'info' | 'default'> 
   MEDIUM: 'info',
   LOW: 'default',
 };
-
 const PRIORITY_LABEL: Record<string, string> = {
   URGENT: 'Urgent',
   HIGH: 'Haute',
   MEDIUM: 'Moyenne',
   LOW: 'Basse',
 };
-
 const PRIORITY_BORDER: Record<string, string> = {
   URGENT: 'border-l-red-500',
   HIGH: 'border-l-amber-500',
@@ -225,29 +250,28 @@ const SelectArrow = () => (
 
 // ─── Animation variants ───
 
-const fadeInUp = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0 },
-};
+const fadeInUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } };
+const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
+const fadeIn = { hidden: { opacity: 0 }, visible: { opacity: 1 } };
+const columnVariants = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } };
 
-const staggerContainer = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.06,
-    },
-  },
-};
+// ─── Droppable Column wrapper (accepts drops even when empty) ───
 
-const fadeIn = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1 },
-};
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`p-3 flex flex-col gap-2 flex-1 min-h-[80px] rounded-b-xl transition-colors duration-200 ${
+        isOver ? 'bg-indigo-500/5 ring-1 ring-inset ring-indigo-500/20' : ''
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
 
-const columnVariants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0 },
-};
+// ─── Main Component ───
 
 export default function ProjectPage() {
   const router = useRouter();
@@ -259,10 +283,8 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Mobile kanban tab
   const [activeTab, setActiveTab] = useState('TODO');
 
-  // States nouvelle tâche
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -274,29 +296,37 @@ export default function ProjectPage() {
   const [creating, setCreating] = useState(false);
   const newFileInputRef = useRef<HTMLInputElement>(null);
 
-  // States tâche sélectionnée
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingDesc, setEditingDesc] = useState('');
   const [savingDesc, setSavingDesc] = useState(false);
 
-  // States membres
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState('MEMBER');
   const [addingMember, setAddingMember] = useState(false);
 
-  // States projet
   const [showEditProject, setShowEditProject] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [savingProject, setSavingProject] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
 
-  // Lightbox
   const [lightboxImages, setLightboxImages] = useState<TaskImage[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // ─── Drag & Drop state ───
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeTaskWidth, setActiveTaskWidth] = useState<number | null>(null);
+  const [taskOrder, setTaskOrder] = useState<Record<string, string[]>>({});
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // ─── Effects ───
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -311,7 +341,38 @@ export default function ProjectPage() {
     const { initFromStorage } = useAuthStore.getState();
     initFromStorage();
     void fetchProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  const projectTasksKey = project?.tasks.map((t) => `${t.id}:${t.status}`).join(',') ?? '';
+
+  useEffect(() => {
+    if (!project) return;
+    const order: Record<string, string[]> = {};
+    COLUMNS.forEach((col) => {
+      order[col.key] = project.tasks.filter((t) => t.status === col.key).map((t) => t.id);
+    });
+    setTaskOrder((prev) => {
+      const merged: Record<string, string[]> = {};
+      let changed = false;
+      COLUMNS.forEach((col) => {
+        const prevCol = prev[col.key] ?? [];
+        const orderCol = order[col.key] ?? [];
+        if (prevCol.length > 0) {
+          const existing = prevCol.filter((id) => orderCol.includes(id));
+          const newIds = orderCol.filter((id) => !existing.includes(id));
+          merged[col.key] = [...existing, ...newIds];
+        } else {
+          merged[col.key] = orderCol;
+        }
+        if ((merged[col.key] ?? []).join(',') !== prevCol.join(',')) changed = true;
+      });
+      return changed ? merged : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectTasksKey]);
+
+  // ─── Data fetching & mutations ───
 
   const fetchProject = async () => {
     try {
@@ -359,20 +420,18 @@ export default function ProjectPage() {
         },
       });
       const createdTask = (data as { createTask: { id: string } }).createTask;
-
       for (const file of newImages) {
         const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = reject;
+          r.readAsDataURL(file);
         });
         await apolloClient.mutate({
           mutation: UPLOAD_IMAGE,
           variables: { taskId: createdTask.id, base64Image: base64 },
         });
       }
-
       setNewTitle('');
       setNewDesc('');
       setNewPriority('MEDIUM');
@@ -482,10 +541,10 @@ export default function ProjectPage() {
     setUploadingImage(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = reject;
+        r.readAsDataURL(file);
       });
       await apolloClient.mutate({
         mutation: UPLOAD_IMAGE,
@@ -496,10 +555,10 @@ export default function ProjectPage() {
         variables: { id: projectId },
         fetchPolicy: 'network-only',
       });
-      const updatedProject = (data as { project: Project }).project;
-      const updatedTask = updatedProject.tasks.find((t) => t.id === selectedTask.id);
-      if (updatedTask) setSelectedTask(updatedTask);
-      setProject(updatedProject);
+      const up = (data as { project: Project }).project;
+      const ut = up.tasks.find((t) => t.id === selectedTask.id);
+      if (ut) setSelectedTask(ut);
+      setProject(up);
     } catch (err) {
       console.error(err);
     } finally {
@@ -515,14 +574,16 @@ export default function ProjectPage() {
         variables: { id: projectId },
         fetchPolicy: 'network-only',
       });
-      const updatedProject = (data as { project: Project }).project;
-      const updatedTask = updatedProject.tasks.find((t) => t.id === selectedTask?.id);
-      if (updatedTask) setSelectedTask(updatedTask);
-      setProject(updatedProject);
+      const up = (data as { project: Project }).project;
+      const ut = up.tasks.find((t) => t.id === selectedTask?.id);
+      if (ut) setSelectedTask(ut);
+      setProject(up);
     } catch (err) {
       console.error(err);
     }
   };
+
+  // ─── Early returns ───
 
   if (loading)
     return (
@@ -537,6 +598,8 @@ export default function ProjectPage() {
         <div className="text-[#8888aa] text-base">Projet introuvable</div>
       </div>
     );
+
+  // ─── Nav items ───
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: SidebarIcons.dashboard },
@@ -553,7 +616,202 @@ export default function ProjectPage() {
     },
   ];
 
-  // Task card component with animation
+  // ─── Drag & Drop logic ───
+
+  const getOrderedTasks = (status: string): Task[] => {
+    const tasksInCol = project.tasks.filter((t) => t.status === status);
+    const order = taskOrder[status];
+    if (!order || order.length === 0) return tasksInCol;
+    return [...tasksInCol].sort((a, b) => {
+      const ia = order.indexOf(a.id);
+      const ib = order.indexOf(b.id);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  };
+
+  const findColumnOfTask = (taskId: string): string | null => {
+    for (const col of COLUMNS) {
+      if (taskOrder[col.key]?.includes(taskId)) return col.key;
+    }
+    const task = project.tasks.find((t) => t.id === taskId);
+    return task?.status ?? null;
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = project.tasks.find((t) => t.id === event.active.id);
+    if (task) {
+      setActiveTask(task);
+      // LECTURE INFAILLIBLE : On mesure directement la carte dans la page web
+      const node = document.getElementById(`task-card-${task.id}`);
+      if (node) {
+        setActiveTaskWidth(node.getBoundingClientRect().width);
+      }
+    }
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const activeCol = findColumnOfTask(activeId);
+
+    let overCol: string | null = null;
+    if (COLUMNS.some((c) => c.key === overId)) {
+      overCol = overId;
+    } else {
+      overCol = findColumnOfTask(overId);
+    }
+
+    if (!activeCol || !overCol || activeCol === overCol) return;
+
+    setTaskOrder((prev) => {
+      const activeItems = [...(prev[activeCol] ?? [])];
+      const overItems = [...(prev[overCol!] ?? [])];
+
+      const activeIndex = activeItems.indexOf(activeId);
+      if (activeIndex === -1) return prev;
+
+      activeItems.splice(activeIndex, 1);
+
+      if (COLUMNS.some((c) => c.key === overId)) {
+        overItems.push(activeId);
+      } else {
+        const overIndex = overItems.indexOf(overId);
+        overItems.splice(overIndex === -1 ? overItems.length : overIndex, 0, activeId);
+      }
+
+      return { ...prev, [activeCol]: activeItems, [overCol!]: overItems };
+    });
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    // On réinitialise la tâche ET la largeur
+    setActiveTask(null);
+    setActiveTaskWidth(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const currentCol = findColumnOfTask(activeId);
+    if (!currentCol) return;
+
+    let targetCol: string | null = null;
+    if (COLUMNS.some((c) => c.key === overId)) {
+      targetCol = overId;
+    } else {
+      targetCol = findColumnOfTask(overId);
+    }
+    if (!targetCol) targetCol = currentCol;
+
+    if (currentCol === targetCol && activeId !== overId) {
+      setTaskOrder((prev) => {
+        const items = [...(prev[currentCol] ?? [])];
+        const oldIndex = items.indexOf(activeId);
+        const newIndex = items.indexOf(overId);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        return { ...prev, [currentCol]: arrayMove(items, oldIndex, newIndex) };
+      });
+    }
+
+    const task = project.tasks.find((t) => t.id === activeId);
+    if (task && task.status !== targetCol) {
+      try {
+        await apolloClient.mutate({
+          mutation: UPDATE_TASK,
+          variables: { id: activeId, input: { status: targetCol } },
+        });
+        void fetchProject();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // ─── Task card content (shared between sortable & mobile) ───
+  // AJOUT MAJEUR : Ajout de "w-full" dans les classes pour être sûr que ça ne se recroqueville pas !
+  const TaskCardContent = ({ task, isDragging = false }: { task: Task; isDragging?: boolean }) => (
+    <div
+      className={`w-full bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 ${isDragging ? 'shadow-xl shadow-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20' : 'hover:border-[#3a3a50]'} transition-colors min-w-0 overflow-hidden box-border`}
+    >
+      <p className="text-base lg:text-lg font-semibold text-[#ffffff] mb-2 leading-snug break-words">
+        {task.title}
+      </p>
+      {task.description && (
+        <p className="text-sm lg:text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed break-words">
+          {task.description}
+        </p>
+      )}
+      {task.images.length > 0 && (
+        <div className="flex gap-1 mb-2 flex-wrap">
+          {task.images.slice(0, 3).map((img) => (
+            <img
+              key={img.id}
+              src={img.url}
+              alt=""
+              className="w-16 h-16 lg:w-20 lg:h-20 rounded object-cover border border-[#2a2a3a]"
+            />
+          ))}
+          {task.images.length > 3 && (
+            <div className="w-16 h-16 lg:w-20 lg:h-20 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
+              +{task.images.length - 3}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-between mt-1">
+        <Badge variant={PRIORITY_BADGE[task.priority] ?? 'default'}>
+          {PRIORITY_LABEL[task.priority] ?? task.priority}
+        </Badge>
+        {task.assignee ? (
+          <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size="sm" />
+        ) : (
+          <span className="text-xs lg:text-[14px] text-[#80808f]">Non assigné</span>
+        )}
+      </div>
+    </div>
+  );
+
+  // ─── Sortable card (desktop) ───
+
+  const SortableTaskCard = ({ task }: { task: Task }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: task.id,
+    });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition: transition ?? 'transform 200ms ease',
+      opacity: isDragging ? 0.3 : 1,
+      zIndex: isDragging ? 50 : ('auto' as const),
+    };
+    return (
+      <div
+        id={`task-card-${task.id}`} // <--- AJOUT MAJEUR : permet de cibler la carte pour mesurer sa vraie largeur
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        onClick={() => {
+          if (!isDragging) {
+            setSelectedTask(task);
+            setEditingDesc(task.description ?? '');
+          }
+        }}
+        className="cursor-grab active:cursor-grabbing w-full"
+      >
+        <TaskCardContent task={task} />
+      </div>
+    );
+  };
+
+  // ─── Mobile card (no drag) ───
+
   const renderTaskCard = (task: Task) => (
     <motion.div
       key={task.id}
@@ -609,12 +867,12 @@ export default function ProjectPage() {
     </motion.div>
   );
 
+  // ─── Render ───
+
   return (
     <SidebarProvider>
       <div className="min-h-screen bg-[#0a0a0f] flex overflow-x-hidden">
-        {/* Shared Sidebar */}
         <Sidebar navItems={navItems}>
-          {/* Members section — touch-friendly */}
           <div className="p-3 border-t border-[#2a2a3a] mt-2">
             <div className="flex items-center justify-between px-2 mb-3">
               <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider">
@@ -668,9 +926,8 @@ export default function ProjectPage() {
           </div>
         </Sidebar>
 
-        {/* Main */}
         <main className="lg:ml-60 flex-1 flex flex-col min-w-0 overflow-x-hidden">
-          {/* ═══ MOBILE Header ═══ */}
+          {/* MOBILE Header */}
           <motion.div
             initial="hidden"
             animate="visible"
@@ -730,7 +987,7 @@ export default function ProjectPage() {
             </div>
           </motion.div>
 
-          {/* ═══ DESKTOP Header ═══ */}
+          {/* DESKTOP Header */}
           <motion.div
             initial="hidden"
             animate="visible"
@@ -788,10 +1045,9 @@ export default function ProjectPage() {
             </div>
           </motion.div>
 
-          {/* Separator */}
           <div className="hidden lg:block border-b border-[#2a2a3a]" />
 
-          {/* ═══ MOBILE: Tab-based Kanban ═══ */}
+          {/* MOBILE: Tab Kanban */}
           <div className="lg:hidden flex flex-col flex-1">
             <div
               className="flex border-b border-[#2a2a3a] overflow-x-auto scrollbar-hide"
@@ -803,14 +1059,7 @@ export default function ProjectPage() {
                   <button
                     key={col.key}
                     onClick={() => setActiveTab(col.key)}
-                    className={`
-                      flex items-center gap-1 px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors
-                      ${
-                        activeTab === col.key
-                          ? 'border-indigo-400 text-indigo-400'
-                          : 'border-transparent text-[#8888aa] hover:text-[#f0f0ff]'
-                      }
-                    `}
+                    className={`flex items-center gap-1 px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === col.key ? 'border-indigo-400 text-indigo-400' : 'border-transparent text-[#8888aa] hover:text-[#f0f0ff]'}`}
                   >
                     <div className={`w-2 h-2 rounded-full ${col.color}`} />
                     {col.shortLabel}
@@ -821,8 +1070,6 @@ export default function ProjectPage() {
                 );
               })}
             </div>
-
-            {/* Active tab content with AnimatePresence for tab switching */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -840,7 +1087,7 @@ export default function ProjectPage() {
                 >
                   {project.tasks
                     .filter((t) => t.status === activeTab)
-                    .map((task, i) => renderTaskCard(task))}
+                    .map((task) => renderTaskCard(task))}
                   {project.tasks.filter((t) => t.status === activeTab).length === 0 && (
                     <div className="flex items-center justify-center py-12">
                       <p className="text-sm text-[#2a2a3a]">Aucune tâche</p>
@@ -851,51 +1098,76 @@ export default function ProjectPage() {
             </AnimatePresence>
           </div>
 
-          {/* ═══ DESKTOP: Classic 4-column Kanban ═══ */}
+          {/* DESKTOP: Drag & Drop Kanban */}
           <div className="hidden lg:block p-8 overflow-x-auto flex-1">
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
-              className="grid grid-cols-4 gap-4 min-w-[900px] items-start"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
             >
-              {COLUMNS.map((col) => {
-                const tasks = project.tasks.filter((t) => t.status === col.key);
-                return (
-                  <motion.div
-                    key={col.key}
-                    variants={columnVariants}
-                    transition={{ duration: 0.4, ease: 'easeOut' }}
-                    className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
-                  >
-                    <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
-                      <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                      <span className="text-md font-medium text-[#8888aa]">{col.label}</span>
-                      <span className="ml-auto bg-[#2a2a3a] text-[#8888aa] text-xs px-2 py-0.5 rounded-full">
-                        {tasks.length}
-                      </span>
-                    </div>
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+                className="grid grid-cols-4 gap-4 min-w-[900px] items-start"
+              >
+                {COLUMNS.map((col) => {
+                  const orderedTasks = getOrderedTasks(col.key);
+                  const taskIds = orderedTasks.map((t) => t.id);
+                  return (
                     <motion.div
-                      initial="hidden"
-                      animate="visible"
-                      variants={staggerContainer}
-                      className="p-3 flex flex-col gap-2 flex-1"
+                      key={col.key}
+                      variants={columnVariants}
+                      transition={{ duration: 0.4, ease: 'easeOut' }}
+                      className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
                     >
-                      {tasks.map((task, i) => renderTaskCard(task))}
-                      {tasks.length === 0 && (
-                        <div className="flex-1 flex items-center justify-center py-8">
-                          <p className="text-md text-[#2a2a3a]">Aucune tâche</p>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
+                        <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                        <span className="text-md font-medium text-[#8888aa]">{col.label}</span>
+                        <span className="ml-auto bg-[#2a2a3a] text-[#8888aa] text-xs px-2 py-0.5 rounded-full">
+                          {orderedTasks.length}
+                        </span>
+                      </div>
+                      <SortableContext
+                        id={col.key}
+                        items={taskIds}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <DroppableColumn id={col.key}>
+                          {orderedTasks.map((task) => (
+                            <SortableTaskCard key={task.id} task={task} />
+                          ))}
+                          {orderedTasks.length === 0 && (
+                            <div className="flex-1 flex items-center justify-center py-8">
+                              <p className="text-md text-[#55556a]">Déposez une tâche ici</p>
+                            </div>
+                          )}
+                        </DroppableColumn>
+                      </SortableContext>
                     </motion.div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                  );
+                })}
+              </motion.div>
+
+              <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
+                {activeTask ? (
+                  <div
+                    className="rotate-[2deg]"
+                    // AJOUT MAJEUR : On applique en dur la largeur exacte récupérée dans le DOM
+                    style={{ width: activeTaskWidth ? `${activeTaskWidth}px` : '300px' }}
+                  >
+                    <TaskCardContent task={activeTask} isDragging />
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           </div>
         </main>
 
-        {/* Modal nouvelle tâche */}
+        {/* ─── Modals ─── */}
+
         <Modal open={showTaskModal} onClose={() => setShowTaskModal(false)} title="Nouvelle tâche">
           <form onSubmit={handleCreateTask} className="flex flex-col gap-5">
             <Input
@@ -976,8 +1248,8 @@ export default function ProjectPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setNewImages((prev) => prev.filter((_, i) => i !== idx));
-                          setNewImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+                          setNewImages((p) => p.filter((_, i) => i !== idx));
+                          setNewImagePreviews((p) => p.filter((_, i) => i !== idx));
                         }}
                         className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center"
                       >
@@ -1024,7 +1296,6 @@ export default function ProjectPage() {
           </form>
         </Modal>
 
-        {/* Modal détail tâche */}
         <Modal
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
@@ -1206,7 +1477,6 @@ export default function ProjectPage() {
           )}
         </Modal>
 
-        {/* Modal inviter membre */}
         <Modal
           open={showMemberModal}
           onClose={() => setShowMemberModal(false)}
@@ -1247,7 +1517,6 @@ export default function ProjectPage() {
           </form>
         </Modal>
 
-        {/* Modal éditer projet */}
         <Modal
           open={showEditProject}
           onClose={() => setShowEditProject(false)}
@@ -1278,7 +1547,6 @@ export default function ProjectPage() {
           </form>
         </Modal>
 
-        {/* Lightbox */}
         <AnimatePresence>
           {lightboxImages.length > 0 && (
             <motion.div
