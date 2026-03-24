@@ -16,6 +16,7 @@ import {
   MobileMenuButton,
   SidebarIcons,
 } from '@/components/layout/Sidebar';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const GET_PROJECT = gql`
   query GetProject($id: ID!) {
@@ -221,6 +222,32 @@ const SelectArrow = () => (
     </svg>
   </div>
 );
+
+// ─── Animation variants ───
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+const columnVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0 },
+};
 
 export default function ProjectPage() {
   const router = useRouter();
@@ -526,21 +553,24 @@ export default function ProjectPage() {
     },
   ];
 
-  // Helper to render a single task card
+  // Task card component with animation
   const renderTaskCard = (task: Task) => (
-    <div
+    <motion.div
       key={task.id}
+      variants={fadeInUp}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
       onClick={() => {
         setSelectedTask(task);
         setEditingDesc(task.description ?? '');
       }}
-      className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group min-w-0 overflow-hidden`}
+      className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-colors min-w-0 overflow-hidden`}
     >
-      <p className="text-base md:text-lg font-semibold text-[#ffffff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors break-words">
+      <p className="text-base lg:text-lg font-semibold text-[#ffffff] mb-2 leading-snug hover:text-indigo-300 transition-colors break-words">
         {task.title}
       </p>
       {task.description && (
-        <p className="text-sm md:text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed break-words">
+        <p className="text-sm lg:text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed break-words">
           {task.description}
         </p>
       )}
@@ -551,7 +581,7 @@ export default function ProjectPage() {
               key={img.id}
               src={img.url}
               alt=""
-              className="w-16 h-16 md:w-20 md:h-20 rounded object-cover border border-[#2a2a3a]"
+              className="w-16 h-16 lg:w-20 lg:h-20 rounded object-cover border border-[#2a2a3a]"
               onClick={(e) => {
                 e.stopPropagation();
                 setLightboxImages(task.images);
@@ -560,7 +590,7 @@ export default function ProjectPage() {
             />
           ))}
           {task.images.length > 3 && (
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
+            <div className="w-16 h-16 lg:w-20 lg:h-20 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
               +{task.images.length - 3}
             </div>
           )}
@@ -573,10 +603,10 @@ export default function ProjectPage() {
         {task.assignee ? (
           <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size="sm" />
         ) : (
-          <span className="text-xs md:text-[14px] text-[#80808f]">Non assigné</span>
+          <span className="text-xs lg:text-[14px] text-[#80808f]">Non assigné</span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 
   return (
@@ -610,7 +640,6 @@ export default function ProjectPage() {
                         {m.user.name}
                       </div>
                     </div>
-                    {/* Always visible remove button (touch-friendly) */}
                     {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
                       <button
                         onClick={() => void handleRemoveMember(m.user.id)}
@@ -641,16 +670,19 @@ export default function ProjectPage() {
 
         {/* Main */}
         <main className="lg:ml-60 flex-1 flex flex-col min-w-0 overflow-x-hidden">
-          {/* Header */}
           {/* ═══ MOBILE Header ═══ */}
-          <div className="lg:hidden border-b border-[#2a2a3a] px-4 py-3">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeIn}
+            transition={{ duration: 0.3 }}
+            className="lg:hidden border-b border-[#2a2a3a] px-4 py-3"
+          >
             <div className="flex items-center justify-between">
-              {/* Left: hamburger + title */}
               <div className="flex items-center gap-2 min-w-0">
                 <MobileMenuButton />
                 <h1 className="text-lg font-bold text-[#f0f0ff] truncate">{project.name}</h1>
               </div>
-              {/* Right: actions */}
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => {
@@ -696,18 +728,22 @@ export default function ProjectPage() {
                 </Button>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* ═══ DESKTOP Header ═══ */}
-          <div className="hidden lg:flex px-8 py-5 items-center justify-between">
-            {/* Left: project name + description */}
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeIn}
+            transition={{ duration: 0.4 }}
+            className="hidden lg:flex px-8 py-5 items-center justify-between"
+          >
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-[#f0f0ff] truncate">{project.name}</h1>
               {project.description && (
                 <p className="text-sm text-[#8888aa] mt-0.5 line-clamp-1">{project.description}</p>
               )}
             </div>
-            {/* Right: actions grouped */}
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => {
@@ -750,14 +786,13 @@ export default function ProjectPage() {
               </button>
               <Button onClick={() => setShowTaskModal(true)}>+ Nouvelle tâche</Button>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Separator — full width, visible on desktop only */}
+          {/* Separator */}
           <div className="hidden lg:block border-b border-[#2a2a3a]" />
 
           {/* ═══ MOBILE: Tab-based Kanban ═══ */}
           <div className="lg:hidden flex flex-col flex-1">
-            {/* Tab bar */}
             <div
               className="flex border-b border-[#2a2a3a] overflow-x-auto scrollbar-hide"
               style={{ scrollbarWidth: 'none' }}
@@ -787,29 +822,50 @@ export default function ProjectPage() {
               })}
             </div>
 
-            {/* Active tab content */}
-            <div className="p-4 flex-1 overflow-y-auto">
-              <div className="flex flex-col gap-3">
-                {project.tasks
-                  .filter((t) => t.status === activeTab)
-                  .map((task) => renderTaskCard(task))}
-                {project.tasks.filter((t) => t.status === activeTab).length === 0 && (
-                  <div className="flex items-center justify-center py-12">
-                    <p className="text-sm text-[#2a2a3a]">Aucune tâche</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Active tab content with AnimatePresence for tab switching */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+                className="p-4 flex-1 overflow-y-auto"
+              >
+                <motion.div
+                  initial="hidden"
+                  animate="visible"
+                  variants={staggerContainer}
+                  className="flex flex-col gap-3"
+                >
+                  {project.tasks
+                    .filter((t) => t.status === activeTab)
+                    .map((task, i) => renderTaskCard(task))}
+                  {project.tasks.filter((t) => t.status === activeTab).length === 0 && (
+                    <div className="flex items-center justify-center py-12">
+                      <p className="text-sm text-[#2a2a3a]">Aucune tâche</p>
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* ═══ DESKTOP: Classic 4-column Kanban ═══ */}
           <div className="hidden lg:block p-8 overflow-x-auto flex-1">
-            <div className="grid grid-cols-4 gap-4 min-w-[900px] items-start">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+              className="grid grid-cols-4 gap-4 min-w-[900px] items-start"
+            >
               {COLUMNS.map((col) => {
                 const tasks = project.tasks.filter((t) => t.status === col.key);
                 return (
-                  <div
+                  <motion.div
                     key={col.key}
+                    variants={columnVariants}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
                     className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
                   >
                     <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
@@ -819,18 +875,23 @@ export default function ProjectPage() {
                         {tasks.length}
                       </span>
                     </div>
-                    <div className="p-3 flex flex-col gap-2 flex-1">
-                      {tasks.map((task) => renderTaskCard(task))}
+                    <motion.div
+                      initial="hidden"
+                      animate="visible"
+                      variants={staggerContainer}
+                      className="p-3 flex flex-col gap-2 flex-1"
+                    >
+                      {tasks.map((task, i) => renderTaskCard(task))}
                       {tasks.length === 0 && (
                         <div className="flex-1 flex items-center justify-center py-8">
                           <p className="text-md text-[#2a2a3a]">Aucune tâche</p>
                         </div>
                       )}
-                    </div>
-                  </div>
+                    </motion.div>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           </div>
         </main>
 
@@ -850,7 +911,6 @@ export default function ProjectPage() {
               onChange={(e) => setNewDesc(e.target.value)}
               placeholder="Description (optionnel)"
             />
-
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Priorité</label>
               <div className="relative">
@@ -867,7 +927,6 @@ export default function ProjectPage() {
                 <SelectArrow />
               </div>
             </div>
-
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Statut</label>
               <div className="relative">
@@ -885,7 +944,6 @@ export default function ProjectPage() {
                 <SelectArrow />
               </div>
             </div>
-
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
               <div className="relative">
@@ -904,8 +962,6 @@ export default function ProjectPage() {
                 <SelectArrow />
               </div>
             </div>
-
-            {/* Images */}
             <div className="flex flex-col gap-3">
               <label className="text-md font-medium text-[#8888aa]">Images</label>
               {newImagePreviews.length > 0 && (
@@ -949,7 +1005,6 @@ export default function ProjectPage() {
                 + Ajouter une image
               </Button>
             </div>
-
             <div className="flex gap-3 justify-end pt-2 border-t border-[#2a2a3a]">
               <Button
                 variant="ghost"
@@ -992,7 +1047,6 @@ export default function ProjectPage() {
                   </div>
                 )}
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="text-md font-medium text-[#8888aa]">Description</label>
                 <textarea
@@ -1026,7 +1080,6 @@ export default function ProjectPage() {
                   </div>
                 )}
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="text-md font-medium text-[#8888aa]">Priorité</label>
                 <div className="relative">
@@ -1046,7 +1099,6 @@ export default function ProjectPage() {
                   <SelectArrow />
                 </div>
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="text-md font-medium text-[#8888aa]">Statut</label>
                 <div className="relative">
@@ -1067,7 +1119,6 @@ export default function ProjectPage() {
                   <SelectArrow />
                 </div>
               </div>
-
               <div className="flex flex-col gap-2">
                 <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
                 <div className="relative">
@@ -1096,7 +1147,6 @@ export default function ProjectPage() {
                   <SelectArrow />
                 </div>
               </div>
-
               <div className="flex flex-col gap-3">
                 <label className="text-md font-medium text-[#8888aa]">Images</label>
                 {selectedTask.images.length > 0 && (
@@ -1140,7 +1190,6 @@ export default function ProjectPage() {
                   + Ajouter une image
                 </Button>
               </div>
-
               <div className="flex justify-between pt-3 border-t border-[#2a2a3a]">
                 <Button
                   variant="danger"
@@ -1229,51 +1278,61 @@ export default function ProjectPage() {
           </form>
         </Modal>
 
-        {/* Lightbox — responsive with larger touch targets */}
-        {lightboxImages.length > 0 && (
-          <div
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-            onClick={() => setLightboxImages([])}
-          >
-            <button
-              className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 bg-black/40 w-11 h-11 rounded-full flex items-center justify-center"
+        {/* Lightbox */}
+        <AnimatePresence>
+          {lightboxImages.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
               onClick={() => setLightboxImages([])}
             >
-              ×
-            </button>
-            {lightboxIndex > 0 && (
               <button
-                className="absolute left-3 md:left-8 text-white text-3xl md:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 md:w-12 md:h-12 flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((i) => i - 1);
-                }}
+                className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 bg-black/40 w-11 h-11 rounded-full flex items-center justify-center"
+                onClick={() => setLightboxImages([])}
               >
-                ‹
+                ×
               </button>
-            )}
-            <img
-              src={lightboxImages[lightboxIndex]?.url}
-              alt=""
-              className="max-w-[90vw] md:max-w-4xl max-h-[80vh] rounded-xl object-contain mx-14 md:mx-20"
-              onClick={(e) => e.stopPropagation()}
-            />
-            {lightboxIndex < lightboxImages.length - 1 && (
-              <button
-                className="absolute right-3 md:right-8 text-white text-3xl md:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 md:w-12 md:h-12 flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((i) => i + 1);
-                }}
-              >
-                ›
-              </button>
-            )}
-            <div className="absolute bottom-6 text-white text-sm opacity-60">
-              {lightboxIndex + 1} / {lightboxImages.length}
-            </div>
-          </div>
-        )}
+              {lightboxIndex > 0 && (
+                <button
+                  className="absolute left-3 lg:left-8 text-white text-3xl lg:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 lg:w-12 lg:h-12 flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((i) => i - 1);
+                  }}
+                >
+                  ‹
+                </button>
+              )}
+              <motion.img
+                key={lightboxIndex}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                src={lightboxImages[lightboxIndex]?.url}
+                alt=""
+                className="max-w-[90vw] lg:max-w-4xl max-h-[80vh] rounded-xl object-contain mx-14 lg:mx-20"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {lightboxIndex < lightboxImages.length - 1 && (
+                <button
+                  className="absolute right-3 lg:right-8 text-white text-3xl lg:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 lg:w-12 lg:h-12 flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((i) => i + 1);
+                  }}
+                >
+                  ›
+                </button>
+              )}
+              <div className="absolute bottom-6 text-white text-sm opacity-60">
+                {lightboxIndex + 1} / {lightboxImages.length}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </SidebarProvider>
   );

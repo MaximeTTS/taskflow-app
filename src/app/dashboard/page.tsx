@@ -16,6 +16,7 @@ import {
   MobileMenuButton,
   SidebarIcons,
 } from '@/components/layout/Sidebar';
+import { motion } from 'framer-motion';
 
 const GET_PROJECTS = gql`
   query GetProjects {
@@ -66,6 +67,27 @@ type Project = {
   owner: { id: string; name: string; email: string };
   tasks: Task[];
   members: Member[];
+};
+
+// ─── Animation variants ───
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
 };
 
 export default function DashboardPage() {
@@ -160,12 +182,18 @@ export default function DashboardPage() {
 
         <main className="lg:ml-60 flex-1 p-4 sm:p-6 lg:p-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 md:mb-8">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeIn}
+            transition={{ duration: 0.4 }}
+            className="flex items-center justify-between mb-6 lg:mb-8"
+          >
             <div className="flex items-center gap-3">
               <MobileMenuButton />
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#f0f0ff]">Dashboard</h1>
-                <p className="text-[#8888aa] mt-1 text-sm md:text-base">
+                <h1 className="text-2xl lg:text-3xl font-bold text-[#f0f0ff]">Dashboard</h1>
+                <p className="text-[#8888aa] mt-1 text-sm lg:text-base">
                   Bienvenue, {user?.name ?? user?.email} 👋
                 </p>
               </div>
@@ -180,10 +208,15 @@ export default function DashboardPage() {
                 + Projet
               </Button>
             </div>
-          </div>
+          </motion.div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8 md:mb-10">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={staggerContainer}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8 lg:mb-10"
+          >
             {[
               { label: 'Projets actifs', value: activeProjects.length, color: 'text-indigo-400' },
               { label: 'Tâches totales', value: totalTasks, color: 'text-[#f0f0ff]' },
@@ -195,40 +228,61 @@ export default function DashboardPage() {
                 color: 'text-amber-400',
               },
             ].map((s) => (
-              <div
+              <motion.div
                 key={s.label}
-                className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-4 md:p-5"
+                variants={fadeInUp}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-4 lg:p-5"
               >
-                <div className="text-sm md:text-lg text-[#8888aa] mb-1 md:mb-2">{s.label}</div>
-                <div className={`text-2xl md:text-3xl font-bold ${s.color}`}>{s.value}</div>
-              </div>
+                <div className="text-sm lg:text-lg text-[#8888aa] mb-1 lg:mb-2">{s.label}</div>
+                <div className={`text-2xl lg:text-3xl font-bold ${s.color}`}>{s.value}</div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
 
           {/* Projects */}
-          <div className="flex items-center justify-between mb-4 md:mb-5">
-            <h2 className="text-xl md:text-2xl font-semibold text-[#f0f0ff]">Mes projets</h2>
-            <span className="text-sm md:text-lg text-[#8888aa]">{projects.length} projet(s)</span>
-          </div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeIn}
+            transition={{ duration: 0.3, delay: 0.2 }}
+            className="flex items-center justify-between mb-4 lg:mb-5"
+          >
+            <h2 className="text-xl lg:text-2xl font-semibold text-[#f0f0ff]">Mes projets</h2>
+            <span className="text-sm lg:text-lg text-[#8888aa]">{projects.length} projet(s)</span>
+          </motion.div>
 
           {projects.length === 0 ? (
-            <div className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-10 md:p-16 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-10 lg:p-16 text-center"
+            >
               <p className="text-[#8888aa] text-base">Aucun projet — créez-en un !</p>
-            </div>
+            </motion.div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={staggerContainer}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5"
+            >
               {projects.map((project) => {
                 const done = project.tasks.filter((t) => t.status === 'DONE').length;
                 const total = project.tasks.length;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 return (
-                  <div
+                  <motion.div
                     key={project.id}
+                    variants={fadeInUp}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    whileHover={{ y: -2, transition: { duration: 0.2 } }}
                     onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                    className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 md:p-6 cursor-pointer hover:border-[#3a3a50] transition-all group"
+                    className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 lg:p-6 cursor-pointer hover:border-[#3a3a50] transition-colors group"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-lg md:text-xl font-semibold text-[#f0f0ff] group-hover:text-indigo-400 transition-colors">
+                      <h3 className="text-lg lg:text-xl font-semibold text-[#f0f0ff] group-hover:text-indigo-400 transition-colors">
                         {project.name}
                       </h3>
                       <Badge variant={pct === 100 ? 'success' : 'purple'}>
@@ -237,7 +291,7 @@ export default function DashboardPage() {
                     </div>
 
                     {project.description && (
-                      <p className="text-sm md:text-md text-[#8888aa] mb-4 line-clamp-2">
+                      <p className="text-sm lg:text-md text-[#8888aa] mb-4 line-clamp-2">
                         {project.description}
                       </p>
                     )}
@@ -264,14 +318,14 @@ export default function DashboardPage() {
                           </div>
                         ))}
                       </div>
-                      <span className="text-sm md:text-md text-[#8888aa]">
+                      <span className="text-sm lg:text-md text-[#8888aa]">
                         {done}/{total} tâches
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           )}
         </main>
 
