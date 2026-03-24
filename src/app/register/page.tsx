@@ -17,6 +17,7 @@ const REGISTER_MUTATION = gql`
         id
         email
         name
+        avatar
       }
     }
   }

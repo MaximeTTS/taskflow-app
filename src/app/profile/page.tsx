@@ -180,12 +180,12 @@ export default function ProfilePage() {
           </div>
         </div>
         <nav className="p-3 flex-1">
-          <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
+          <div className="text-[12px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
             Menu
           </div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"
@@ -201,7 +201,7 @@ export default function ProfilePage() {
             </svg>
             Dashboard
           </button>
-          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm bg-indigo-500/10 text-indigo-400 mb-1">
+          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md bg-indigo-500/10 text-indigo-400 mb-1">
             <svg
               className="w-4 h-4"
               viewBox="0 0 24 24"
@@ -219,7 +219,7 @@ export default function ProfilePage() {
               logout();
               router.push('/login');
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
           >
             <svg
               className="w-4 h-4"

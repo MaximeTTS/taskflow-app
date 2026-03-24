@@ -17,6 +17,7 @@ const LOGIN_MUTATION = gql`
         id
         email
         name
+        avatar
       }
     }
   }

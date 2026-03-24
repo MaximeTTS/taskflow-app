@@ -10,6 +10,12 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/store/auth-store';
+import {
+  Sidebar,
+  SidebarProvider,
+  MobileMenuButton,
+  SidebarIcons,
+} from '@/components/layout/Sidebar';
 
 const GET_PROJECT = gql`
   query GetProject($id: ID!) {
@@ -178,10 +184,10 @@ type Project = {
 };
 
 const COLUMNS = [
-  { key: 'TODO', label: 'À faire', color: 'bg-[#2a2a3a]' },
-  { key: 'IN_PROGRESS', label: 'En cours', color: 'bg-indigo-500' },
-  { key: 'IN_REVIEW', label: 'En révision', color: 'bg-amber-500' },
-  { key: 'DONE', label: 'Terminé', color: 'bg-green-500' },
+  { key: 'TODO', label: 'À faire', shortLabel: 'À faire', color: 'bg-[#2a2a3a]' },
+  { key: 'IN_PROGRESS', label: 'En cours', shortLabel: 'En cours', color: 'bg-indigo-500' },
+  { key: 'IN_REVIEW', label: 'En révision', shortLabel: 'Révision', color: 'bg-amber-500' },
+  { key: 'DONE', label: 'Terminé', shortLabel: 'Terminé', color: 'bg-green-500' },
 ];
 
 const PRIORITY_BADGE: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {
@@ -220,11 +226,14 @@ export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Mobile kanban tab
+  const [activeTab, setActiveTab] = useState('TODO');
 
   // States nouvelle tâche
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -502,187 +511,158 @@ export default function ProjectPage() {
       </div>
     );
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0f] flex">
-      {/* Sidebar */}
-      <aside className="w-60 bg-[#111118] border-r border-[#2a2a3a] flex flex-col fixed h-full overflow-y-auto">
-        <div className="p-6 border-b border-[#2a2a3a]">
-          <div className="text-3xl font-bold text-[#f0f0ff]">
-            Task<span className="text-indigo-400">Flow</span>
-          </div>
-        </div>
+  const navItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: SidebarIcons.dashboard },
+    { label: project.name, icon: SidebarIcons.project, active: true },
+    { label: 'Profil', path: '/profile', icon: SidebarIcons.profile },
+    {
+      label: 'Déconnexion',
+      icon: SidebarIcons.logout,
+      variant: 'danger' as const,
+      onClick: () => {
+        logout();
+        router.push('/login');
+      },
+    },
+  ];
 
-        <nav className="p-3">
-          <div className="text-[12px] font-medium text-[#55556a] uppercase tracking-wider px-2 mb-3">
-            Menu
-          </div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
-          >
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-            Dashboard
-          </button>
-          <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md bg-indigo-500/10 text-indigo-400 mb-1">
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
-            <span className="truncate">{project.name}</span>
-          </button>
-          <button
-            onClick={() => router.push('/profile')}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors mb-1"
-          >
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            Profil
-          </button>
-          <button
-            onClick={() => {
-              logout();
-              router.push('/login');
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-md text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors mb-1"
-          >
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Déconnexion
-          </button>
-        </nav>
-
-        {/* Membres sidebar */}
-        <div className="p-3 border-t border-[#2a2a3a] mt-2">
-          <div className="flex items-center justify-between px-2 mb-3">
-            <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider">
-              Membres
+  // Helper to render a single task card
+  const renderTaskCard = (task: Task) => (
+    <div
+      key={task.id}
+      onClick={() => {
+        setSelectedTask(task);
+        setEditingDesc(task.description ?? '');
+      }}
+      className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group min-w-0 overflow-hidden`}
+    >
+      <p className="text-base md:text-lg font-semibold text-[#ffffff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors break-words">
+        {task.title}
+      </p>
+      {task.description && (
+        <p className="text-sm md:text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed break-words">
+          {task.description}
+        </p>
+      )}
+      {task.images.length > 0 && (
+        <div className="flex gap-1 mb-2 flex-wrap">
+          {task.images.slice(0, 3).map((img) => (
+            <img
+              key={img.id}
+              src={img.url}
+              alt=""
+              className="w-16 h-16 md:w-20 md:h-20 rounded object-cover border border-[#2a2a3a]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxImages(task.images);
+                setLightboxIndex(task.images.indexOf(img));
+              }}
+            />
+          ))}
+          {task.images.length > 3 && (
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
+              +{task.images.length - 3}
             </div>
-            <button
-              onClick={() => setShowMemberModal(true)}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              + Inviter
-            </button>
-          </div>
-          <div className="flex flex-col gap-1">
-            {project.members.map((m) => (
-              <div
-                key={m.id}
-                className="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-[#1e1e2a] group"
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-between mt-1">
+        <Badge variant={PRIORITY_BADGE[task.priority] ?? 'default'}>
+          {PRIORITY_LABEL[task.priority] ?? task.priority}
+        </Badge>
+        {task.assignee ? (
+          <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size="sm" />
+        ) : (
+          <span className="text-xs md:text-[14px] text-[#80808f]">Non assigné</span>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen bg-[#0a0a0f] flex overflow-x-hidden">
+        {/* Shared Sidebar */}
+        <Sidebar navItems={navItems}>
+          {/* Members section — touch-friendly */}
+          <div className="p-3 border-t border-[#2a2a3a] mt-2">
+            <div className="flex items-center justify-between px-2 mb-3">
+              <div className="text-[11px] font-medium text-[#55556a] uppercase tracking-wider">
+                Membres
+              </div>
+              <button
+                onClick={() => setShowMemberModal(true)}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
               >
-                <div className="flex items-center gap-2">
-                  <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-[#f0f0ff] truncate">{m.user.name}</div>
+                + Inviter
+              </button>
+            </div>
+            <div className="flex flex-col gap-1">
+              {project.members.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex flex-col gap-1 px-2 py-2 rounded-lg hover:bg-[#1e1e2a]"
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-[#f0f0ff] truncate">
+                        {m.user.name}
+                      </div>
+                    </div>
+                    {/* Always visible remove button (touch-friendly) */}
+                    {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
+                      <button
+                        onClick={() => void handleRemoveMember(m.user.id)}
+                        className="text-[#55556a] hover:text-red-400 active:text-red-400 transition-all text-lg leading-none w-7 h-7 flex items-center justify-center rounded hover:bg-red-500/10"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
-                  {m.user.id !== project.owner.id && m.user.id !== currentUserId && (
-                    <button
-                      onClick={() => void handleRemoveMember(m.user.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[#55556a] hover:text-red-400 transition-all text-base leading-none"
+                  {m.user.id !== project.owner.id ? (
+                    <select
+                      value={m.role}
+                      onChange={(e) => void handleUpdateRole(m.user.id, e.target.value)}
+                      className="w-full bg-[#2a2a3a] border border-[#3a3a50] rounded px-2 py-1 text-xs text-[#f0f0ff] outline-none mt-1"
                     >
-                      ×
-                    </button>
+                      <option value="ADMIN">Admin</option>
+                      <option value="MEMBER">Member</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                  ) : (
+                    <div className="text-[10px] text-indigo-400 px-0.5">Owner</div>
                   )}
                 </div>
-                {m.user.id !== project.owner.id ? (
-                  <select
-                    value={m.role}
-                    onChange={(e) => void handleUpdateRole(m.user.id, e.target.value)}
-                    className="w-full bg-[#2a2a3a] border border-[#3a3a50] rounded px-2 py-1 text-xs text-[#f0f0ff] outline-none mt-1"
-                  >
-                    <option value="ADMIN">Admin</option>
-                    <option value="MEMBER">Member</option>
-                    <option value="VIEWER">Viewer</option>
-                  </select>
-                ) : (
-                  <div className="text-[10px] text-indigo-400 px-0.5">Owner</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-[#2a2a3a] mt-auto">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.name ?? user?.email ?? 'U'} avatar={user?.avatar} size="sm" />{' '}
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-[#f0f0ff] truncate">
-                {user?.name ?? 'Utilisateur'}
-              </div>
-              <div className="text-xs text-[#8888aa] truncate">{user?.email}</div>
+              ))}
             </div>
           </div>
-        </div>
-      </aside>
+        </Sidebar>
 
-      {/* Main */}
-      <main className="ml-60 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="border-b border-[#2a2a3a] px-8 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="text-[#8888aa] hover:text-[#f0f0ff] transition-colors"
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M19 12H5M12 5l-7 7 7 7" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-xl font-bold text-[#f0f0ff]">{project.name}</h1>
-              {project.description && (
-                <p className="text-sm text-[#8888aa] mt-0.5">{project.description}</p>
-              )}
-              <div className="flex items-center gap-3 mt-2">
+        {/* Main */}
+        <main className="lg:ml-60 flex-1 flex flex-col min-w-0 overflow-x-hidden">
+          {/* Header */}
+          {/* ═══ MOBILE Header ═══ */}
+          <div className="lg:hidden border-b border-[#2a2a3a] px-4 py-3">
+            <div className="flex items-center justify-between">
+              {/* Left: hamburger + title */}
+              <div className="flex items-center gap-2 min-w-0">
+                <MobileMenuButton />
+                <h1 className="text-lg font-bold text-[#f0f0ff] truncate">{project.name}</h1>
+              </div>
+              {/* Right: actions */}
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => {
                     setEditName(project.name);
                     setEditDesc(project.description ?? '');
                     setShowEditProject(true);
                   }}
-                  className="flex items-center gap-1.5 text-xs text-[#55556a] hover:text-[#8888aa] transition-colors"
+                  className="p-2 text-[#55556a] hover:text-[#8888aa] active:text-[#f0f0ff] transition-colors"
+                  aria-label="Modifier le projet"
                 >
                   <svg
-                    className="w-3.5 h-3.5"
+                    className="w-4 h-4"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -691,15 +671,15 @@ export default function ProjectPage() {
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
-                  Modifier
                 </button>
                 <button
                   onClick={() => void handleDeleteProject()}
                   disabled={deletingProject}
-                  className="flex items-center gap-1.5 text-xs text-[#55556a] hover:text-red-400 transition-colors disabled:opacity-50"
+                  className="p-2 text-[#55556a] hover:text-red-400 active:text-red-400 transition-colors disabled:opacity-50"
+                  aria-label="Supprimer le projet"
                 >
                   <svg
-                    className="w-3.5 h-3.5"
+                    className="w-4 h-4"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -710,303 +690,173 @@ export default function ProjectPage() {
                     <path d="M10 11v6M14 11v6" />
                     <path d="M9 6V4h6v2" />
                   </svg>
-                  Supprimer
                 </button>
+                <Button size="sm" onClick={() => setShowTaskModal(true)}>
+                  + Tâche
+                </Button>
               </div>
             </div>
           </div>
-          <Button onClick={() => setShowTaskModal(true)}>+ Nouvelle tâche</Button>
-        </div>
 
-        {/* Kanban */}
-        <div className="p-8 overflow-x-auto flex-1">
-          <div className="grid grid-cols-4 gap-4 min-w-[900px] items-start">
-            {COLUMNS.map((col) => {
-              const tasks = project.tasks.filter((t) => t.status === col.key);
-              return (
-                <div
-                  key={col.key}
-                  className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
+          {/* ═══ DESKTOP Header ═══ */}
+          <div className="hidden lg:flex px-8 py-5 items-center justify-between">
+            {/* Left: project name + description */}
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-[#f0f0ff] truncate">{project.name}</h1>
+              {project.description && (
+                <p className="text-sm text-[#8888aa] mt-0.5 line-clamp-1">{project.description}</p>
+              )}
+            </div>
+            {/* Right: actions grouped */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setEditName(project.name);
+                  setEditDesc(project.description ?? '');
+                  setShowEditProject(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-[#f0f0ff] hover:bg-[#1e1e2a] transition-colors"
+              >
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
                 >
-                  <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Modifier
+              </button>
+              <button
+                onClick={() => void handleDeleteProject()}
+                disabled={deletingProject}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-[#8888aa] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+              >
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+                Supprimer
+              </button>
+              <Button onClick={() => setShowTaskModal(true)}>+ Nouvelle tâche</Button>
+            </div>
+          </div>
+
+          {/* Separator — full width, visible on desktop only */}
+          <div className="hidden lg:block border-b border-[#2a2a3a]" />
+
+          {/* ═══ MOBILE: Tab-based Kanban ═══ */}
+          <div className="lg:hidden flex flex-col flex-1">
+            {/* Tab bar */}
+            <div
+              className="flex border-b border-[#2a2a3a] overflow-x-auto scrollbar-hide"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {COLUMNS.map((col) => {
+                const count = project.tasks.filter((t) => t.status === col.key).length;
+                return (
+                  <button
+                    key={col.key}
+                    onClick={() => setActiveTab(col.key)}
+                    className={`
+                      flex items-center gap-1 px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors
+                      ${
+                        activeTab === col.key
+                          ? 'border-indigo-400 text-indigo-400'
+                          : 'border-transparent text-[#8888aa] hover:text-[#f0f0ff]'
+                      }
+                    `}
+                  >
                     <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                    <span className="text-md font-medium text-[#8888aa]">{col.label}</span>
-                    <span className="ml-auto bg-[#2a2a3a] text-[#8888aa] text-xs px-2 py-0.5 rounded-full">
-                      {tasks.length}
+                    {col.shortLabel}
+                    <span className="bg-[#2a2a3a] text-[#8888aa] text-xs px-1.5 py-0.5 rounded-full">
+                      {count}
                     </span>
-                  </div>
-                  <div className="p-3 flex flex-col gap-2 flex-1">
-                    {tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        onClick={() => {
-                          setSelectedTask(task);
-                          setEditingDesc(task.description ?? '');
-                        }}
-                        className={`bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 cursor-pointer hover:border-[#3a3a50] transition-all group`}
-                      >
-                        <p className="text-lg font-semibold text-[#ffffff] mb-2 leading-snug group-hover:text-indigo-300 transition-colors">
-                          {task.title}
-                        </p>
-                        {task.description && (
-                          <p className="text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed">
-                            {task.description}
-                          </p>
-                        )}
-                        {task.images.length > 0 && (
-                          <div className="flex gap-1 mb-2">
-                            {task.images.slice(0, 3).map((img) => (
-                              <img
-                                key={img.id}
-                                src={img.url}
-                                alt=""
-                                className="w-20 h-20 rounded object-cover border border-[#2a2a3a]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLightboxImages(task.images);
-                                  setLightboxIndex(task.images.indexOf(img));
-                                }}
-                              />
-                            ))}
-                            {task.images.length > 3 && (
-                              <div className="w-10 h-10 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
-                                +{task.images.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mt-1">
-                          <Badge variant={PRIORITY_BADGE[task.priority] ?? 'default'}>
-                            {PRIORITY_LABEL[task.priority] ?? task.priority}
-                          </Badge>
-                          {task.assignee ? (
-                            <Avatar
-                              name={task.assignee.name}
-                              avatar={task.assignee.avatar}
-                              size="sm"
-                            />
-                          ) : (
-                            <span className="text-[14px] text-[#80808f]">Non assigné</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {tasks.length === 0 && (
-                      <div className="flex-1 flex items-center justify-center py-8">
-                        <p className="text-md text-[#2a2a3a]">Aucune tâche</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </main>
-
-      {/* Modal nouvelle tâche */}
-      <Modal open={showTaskModal} onClose={() => setShowTaskModal(false)} title="Nouvelle tâche">
-        <form onSubmit={handleCreateTask} className="flex flex-col gap-5">
-          <Input
-            label="Titre"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Titre de la tâche"
-            required
-          />
-          <Input
-            label="Description"
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-            placeholder="Description (optionnel)"
-          />
-
-          <div className="flex flex-col gap-2">
-            <label className="text-md font-medium text-[#8888aa]">Priorité</label>
-            <div className="relative">
-              <select
-                value={newPriority}
-                onChange={(e) => setNewPriority(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="LOW">Basse</option>
-                <option value="MEDIUM">Moyenne</option>
-                <option value="HIGH">Haute</option>
-                <option value="URGENT">Urgente</option>
-              </select>
-              <SelectArrow />
+                  </button>
+                );
+              })}
             </div>
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-md font-medium text-[#8888aa]">Statut</label>
-            <div className="relative">
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                {COLUMNS.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <SelectArrow />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
-            <div className="relative">
-              <select
-                value={newAssignee}
-                onChange={(e) => setNewAssignee(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="">Non assigné</option>
-                {project.members.map((m) => (
-                  <option key={m.user.id} value={m.user.id}>
-                    {m.user.name}
-                  </option>
-                ))}
-              </select>
-              <SelectArrow />
-            </div>
-          </div>
-
-          {/* Images */}
-          <div className="flex flex-col gap-3">
-            <label className="text-md font-medium text-[#8888aa]">Images</label>
-            {newImagePreviews.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {newImagePreviews.map((preview, idx) => (
-                  <div key={idx} className="relative group">
-                    <img
-                      src={preview}
-                      alt=""
-                      className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewImages((prev) => prev.filter((_, i) => i !== idx));
-                        setNewImagePreviews((prev) => prev.filter((_, i) => i !== idx));
-                      }}
-                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      ×
-                    </button>
+            {/* Active tab content */}
+            <div className="p-4 flex-1 overflow-y-auto">
+              <div className="flex flex-col gap-3">
+                {project.tasks
+                  .filter((t) => t.status === activeTab)
+                  .map((task) => renderTaskCard(task))}
+                {project.tasks.filter((t) => t.status === activeTab).length === 0 && (
+                  <div className="flex items-center justify-center py-12">
+                    <p className="text-sm text-[#2a2a3a]">Aucune tâche</p>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-            <input
-              ref={newFileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.[0]) handleNewImageSelect(e.target.files[0]);
-              }}
+            </div>
+          </div>
+
+          {/* ═══ DESKTOP: Classic 4-column Kanban ═══ */}
+          <div className="hidden lg:block p-8 overflow-x-auto flex-1">
+            <div className="grid grid-cols-4 gap-4 min-w-[900px] items-start">
+              {COLUMNS.map((col) => {
+                const tasks = project.tasks.filter((t) => t.status === col.key);
+                return (
+                  <div
+                    key={col.key}
+                    className="bg-[#111118] border border-[#2a2a3a] rounded-xl flex flex-col"
+                  >
+                    <div className="flex items-center gap-2 p-4 border-b border-[#2a2a3a]">
+                      <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                      <span className="text-md font-medium text-[#8888aa]">{col.label}</span>
+                      <span className="ml-auto bg-[#2a2a3a] text-[#8888aa] text-xs px-2 py-0.5 rounded-full">
+                        {tasks.length}
+                      </span>
+                    </div>
+                    <div className="p-3 flex flex-col gap-2 flex-1">
+                      {tasks.map((task) => renderTaskCard(task))}
+                      {tasks.length === 0 && (
+                        <div className="flex-1 flex items-center justify-center py-8">
+                          <p className="text-md text-[#2a2a3a]">Aucune tâche</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </main>
+
+        {/* Modal nouvelle tâche */}
+        <Modal open={showTaskModal} onClose={() => setShowTaskModal(false)} title="Nouvelle tâche">
+          <form onSubmit={handleCreateTask} className="flex flex-col gap-5">
+            <Input
+              label="Titre"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Titre de la tâche"
+              required
             />
-            <Button
-              variant="secondary"
-              size="md"
-              type="button"
-              onClick={() => newFileInputRef.current?.click()}
-            >
-              + Ajouter une image
-            </Button>
-          </div>
-
-          <div className="flex gap-3 justify-end pt-2 border-t border-[#2a2a3a]">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => {
-                setShowTaskModal(false);
-                setNewImages([]);
-                setNewImagePreviews([]);
-              }}
-            >
-              Annuler
-            </Button>
-            <Button type="submit" loading={creating}>
-              Créer
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal détail tâche */}
-      <Modal
-        open={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
-        title={selectedTask?.title ?? ''}
-      >
-        {selectedTask && (
-          <div className="flex flex-col gap-5">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Badge variant={PRIORITY_BADGE[selectedTask.priority] ?? 'default'}>
-                {PRIORITY_LABEL[selectedTask.priority]}
-              </Badge>
-              {selectedTask.assignee && (
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    name={selectedTask.assignee.name}
-                    avatar={selectedTask.assignee.avatar}
-                    size="sm"
-                  />
-                  <span className="text-base text-[#8888aa]">{selectedTask.assignee.name}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Description éditable */}
-            <div className="flex flex-col gap-2">
-              <label className="text-md font-medium text-[#8888aa]">Description</label>
-              <textarea
-                value={editingDesc}
-                onChange={(e) => setEditingDesc(e.target.value)}
-                placeholder="Ajouter une description..."
-                rows={3}
-                className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none focus:border-indigo-500 resize-none transition-colors"
-              />
-              {editingDesc !== (selectedTask.description ?? '') && (
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setEditingDesc(selectedTask.description ?? '')}
-                    className="text-xs text-[#55556a] hover:text-[#f0f0ff] transition-colors"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setSavingDesc(true);
-                      await handleUpdateTask(selectedTask.id, { description: editingDesc });
-                      setSelectedTask({ ...selectedTask, description: editingDesc });
-                      setSavingDesc(false);
-                    }}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                  >
-                    {savingDesc ? 'Sauvegarde...' : 'Sauvegarder'}
-                  </button>
-                </div>
-              )}
-            </div>
+            <Input
+              label="Description"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              placeholder="Description (optionnel)"
+            />
 
             <div className="flex flex-col gap-2">
               <label className="text-md font-medium text-[#8888aa]">Priorité</label>
               <div className="relative">
                 <select
-                  value={selectedTask.priority}
-                  onChange={(e) => {
-                    void handleUpdateTask(selectedTask.id, { priority: e.target.value });
-                    setSelectedTask({ ...selectedTask, priority: e.target.value });
-                  }}
+                  value={newPriority}
+                  onChange={(e) => setNewPriority(e.target.value)}
                   className={SELECT_CLASS}
                 >
                   <option value="LOW">Basse</option>
@@ -1022,11 +872,8 @@ export default function ProjectPage() {
               <label className="text-md font-medium text-[#8888aa]">Statut</label>
               <div className="relative">
                 <select
-                  value={selectedTask.status}
-                  onChange={(e) => {
-                    void handleUpdateTask(selectedTask.id, { status: e.target.value });
-                    setSelectedTask({ ...selectedTask, status: e.target.value });
-                  }}
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
                   className={SELECT_CLASS}
                 >
                   {COLUMNS.map((c) => (
@@ -1043,18 +890,8 @@ export default function ProjectPage() {
               <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
               <div className="relative">
                 <select
-                  value={selectedTask.assignee?.id ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    void handleUpdateTask(selectedTask.id, {
-                      assigneeId: val === '' ? null : val,
-                    } as Record<string, string | null>);
-                    const member = project.members.find((m) => m.user.id === val);
-                    setSelectedTask({
-                      ...selectedTask,
-                      assignee: member ? { id: member.user.id, name: member.user.name } : null,
-                    });
-                  }}
+                  value={newAssignee}
+                  onChange={(e) => setNewAssignee(e.target.value)}
                   className={SELECT_CLASS}
                 >
                   <option value="">Non assigné</option>
@@ -1068,24 +905,25 @@ export default function ProjectPage() {
               </div>
             </div>
 
+            {/* Images */}
             <div className="flex flex-col gap-3">
               <label className="text-md font-medium text-[#8888aa]">Images</label>
-              {selectedTask.images.length > 0 && (
+              {newImagePreviews.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
-                  {selectedTask.images.map((img, idx) => (
-                    <div key={img.id} className="relative group">
+                  {newImagePreviews.map((preview, idx) => (
+                    <div key={idx} className="relative">
                       <img
-                        src={img.url}
+                        src={preview}
                         alt=""
-                        className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a] cursor-pointer hover:border-indigo-500 transition-colors"
-                        onClick={() => {
-                          setLightboxImages(selectedTask.images);
-                          setLightboxIndex(idx);
-                        }}
+                        className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a]"
                       />
                       <button
-                        onClick={() => void handleDeleteImage(img.id)}
-                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        type="button"
+                        onClick={() => {
+                          setNewImages((prev) => prev.filter((_, i) => i !== idx));
+                          setNewImagePreviews((prev) => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center"
                       >
                         ×
                       </button>
@@ -1094,157 +932,349 @@ export default function ProjectPage() {
                 </div>
               )}
               <input
-                ref={fileInputRef}
+                ref={newFileInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => {
-                  if (e.target.files?.[0]) void handleUploadImage(e.target.files[0]);
+                  if (e.target.files?.[0]) handleNewImageSelect(e.target.files[0]);
                 }}
               />
               <Button
                 variant="secondary"
                 size="md"
-                loading={uploadingImage}
-                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                onClick={() => newFileInputRef.current?.click()}
               >
                 + Ajouter une image
               </Button>
             </div>
 
-            <div className="flex justify-between pt-3 border-t border-[#2a2a3a]">
+            <div className="flex gap-3 justify-end pt-2 border-t border-[#2a2a3a]">
               <Button
-                variant="danger"
-                size="md"
-                onClick={() => void handleDeleteTask(selectedTask.id)}
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setShowTaskModal(false);
+                  setNewImages([]);
+                  setNewImagePreviews([]);
+                }}
               >
-                Supprimer
+                Annuler
               </Button>
-              <Button variant="ghost" size="md" onClick={() => setSelectedTask(null)}>
-                Fermer
+              <Button type="submit" loading={creating}>
+                Créer
               </Button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Modal détail tâche */}
+        <Modal
+          open={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          title={selectedTask?.title ?? ''}
+        >
+          {selectedTask && (
+            <div className="flex flex-col gap-5">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge variant={PRIORITY_BADGE[selectedTask.priority] ?? 'default'}>
+                  {PRIORITY_LABEL[selectedTask.priority]}
+                </Badge>
+                {selectedTask.assignee && (
+                  <div className="flex items-center gap-2">
+                    <Avatar
+                      name={selectedTask.assignee.name}
+                      avatar={selectedTask.assignee.avatar}
+                      size="sm"
+                    />
+                    <span className="text-base text-[#8888aa]">{selectedTask.assignee.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-md font-medium text-[#8888aa]">Description</label>
+                <textarea
+                  value={editingDesc}
+                  onChange={(e) => setEditingDesc(e.target.value)}
+                  placeholder="Ajouter une description..."
+                  rows={3}
+                  className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none focus:border-indigo-500 resize-none transition-colors"
+                />
+                {editingDesc !== (selectedTask.description ?? '') && (
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setEditingDesc(selectedTask.description ?? '')}
+                      className="text-xs text-[#55556a] hover:text-[#f0f0ff] transition-colors px-2 py-1"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSavingDesc(true);
+                        await handleUpdateTask(selectedTask.id, { description: editingDesc });
+                        setSelectedTask({ ...selectedTask, description: editingDesc });
+                        setSavingDesc(false);
+                      }}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors px-2 py-1"
+                    >
+                      {savingDesc ? 'Sauvegarde...' : 'Sauvegarder'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-md font-medium text-[#8888aa]">Priorité</label>
+                <div className="relative">
+                  <select
+                    value={selectedTask.priority}
+                    onChange={(e) => {
+                      void handleUpdateTask(selectedTask.id, { priority: e.target.value });
+                      setSelectedTask({ ...selectedTask, priority: e.target.value });
+                    }}
+                    className={SELECT_CLASS}
+                  >
+                    <option value="LOW">Basse</option>
+                    <option value="MEDIUM">Moyenne</option>
+                    <option value="HIGH">Haute</option>
+                    <option value="URGENT">Urgente</option>
+                  </select>
+                  <SelectArrow />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-md font-medium text-[#8888aa]">Statut</label>
+                <div className="relative">
+                  <select
+                    value={selectedTask.status}
+                    onChange={(e) => {
+                      void handleUpdateTask(selectedTask.id, { status: e.target.value });
+                      setSelectedTask({ ...selectedTask, status: e.target.value });
+                    }}
+                    className={SELECT_CLASS}
+                  >
+                    {COLUMNS.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-md font-medium text-[#8888aa]">Assigné à</label>
+                <div className="relative">
+                  <select
+                    value={selectedTask.assignee?.id ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      void handleUpdateTask(selectedTask.id, {
+                        assigneeId: val === '' ? null : val,
+                      } as Record<string, string | null>);
+                      const member = project.members.find((m) => m.user.id === val);
+                      setSelectedTask({
+                        ...selectedTask,
+                        assignee: member ? { id: member.user.id, name: member.user.name } : null,
+                      });
+                    }}
+                    className={SELECT_CLASS}
+                  >
+                    <option value="">Non assigné</option>
+                    {project.members.map((m) => (
+                      <option key={m.user.id} value={m.user.id}>
+                        {m.user.name}
+                      </option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <label className="text-md font-medium text-[#8888aa]">Images</label>
+                {selectedTask.images.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedTask.images.map((img, idx) => (
+                      <div key={img.id} className="relative">
+                        <img
+                          src={img.url}
+                          alt=""
+                          className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a] cursor-pointer hover:border-indigo-500 transition-colors"
+                          onClick={() => {
+                            setLightboxImages(selectedTask.images);
+                            setLightboxIndex(idx);
+                          }}
+                        />
+                        <button
+                          onClick={() => void handleDeleteImage(img.id)}
+                          className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) void handleUploadImage(e.target.files[0]);
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  size="md"
+                  loading={uploadingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  + Ajouter une image
+                </Button>
+              </div>
+
+              <div className="flex justify-between pt-3 border-t border-[#2a2a3a]">
+                <Button
+                  variant="danger"
+                  size="md"
+                  onClick={() => void handleDeleteTask(selectedTask.id)}
+                >
+                  Supprimer
+                </Button>
+                <Button variant="ghost" size="md" onClick={() => setSelectedTask(null)}>
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* Modal inviter membre */}
+        <Modal
+          open={showMemberModal}
+          onClose={() => setShowMemberModal(false)}
+          title="Inviter un membre"
+        >
+          <form onSubmit={handleAddMember} className="flex flex-col gap-4">
+            <Input
+              label="Email"
+              type="email"
+              value={memberEmail}
+              onChange={(e) => setMemberEmail(e.target.value)}
+              placeholder="alice@exemple.com"
+              required
+            />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[#8888aa]">Rôle</label>
+              <div className="relative">
+                <select
+                  value={memberRole}
+                  onChange={(e) => setMemberRole(e.target.value)}
+                  className={SELECT_CLASS}
+                >
+                  <option value="ADMIN">Admin</option>
+                  <option value="MEMBER">Member</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+                <SelectArrow />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="ghost" type="button" onClick={() => setShowMemberModal(false)}>
+                Annuler
+              </Button>
+              <Button type="submit" loading={addingMember}>
+                Inviter
+              </Button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Modal éditer projet */}
+        <Modal
+          open={showEditProject}
+          onClose={() => setShowEditProject(false)}
+          title="Modifier le projet"
+        >
+          <form onSubmit={handleUpdateProject} className="flex flex-col gap-4">
+            <Input
+              label="Nom"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Nom du projet"
+              required
+            />
+            <Input
+              label="Description"
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              placeholder="Description (optionnel)"
+            />
+            <div className="flex gap-3 justify-end">
+              <Button variant="ghost" type="button" onClick={() => setShowEditProject(false)}>
+                Annuler
+              </Button>
+              <Button type="submit" loading={savingProject}>
+                Enregistrer
+              </Button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Lightbox — responsive with larger touch targets */}
+        {lightboxImages.length > 0 && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+            onClick={() => setLightboxImages([])}
+          >
+            <button
+              className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 bg-black/40 w-11 h-11 rounded-full flex items-center justify-center"
+              onClick={() => setLightboxImages([])}
+            >
+              ×
+            </button>
+            {lightboxIndex > 0 && (
+              <button
+                className="absolute left-3 md:left-8 text-white text-3xl md:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 md:w-12 md:h-12 flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxIndex((i) => i - 1);
+                }}
+              >
+                ‹
+              </button>
+            )}
+            <img
+              src={lightboxImages[lightboxIndex]?.url}
+              alt=""
+              className="max-w-[90vw] md:max-w-4xl max-h-[80vh] rounded-xl object-contain mx-14 md:mx-20"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {lightboxIndex < lightboxImages.length - 1 && (
+              <button
+                className="absolute right-3 md:right-8 text-white text-3xl md:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 md:w-12 md:h-12 flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxIndex((i) => i + 1);
+                }}
+              >
+                ›
+              </button>
+            )}
+            <div className="absolute bottom-6 text-white text-sm opacity-60">
+              {lightboxIndex + 1} / {lightboxImages.length}
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* Modal inviter membre */}
-      <Modal
-        open={showMemberModal}
-        onClose={() => setShowMemberModal(false)}
-        title="Inviter un membre"
-      >
-        <form onSubmit={handleAddMember} className="flex flex-col gap-4">
-          <Input
-            label="Email"
-            type="email"
-            value={memberEmail}
-            onChange={(e) => setMemberEmail(e.target.value)}
-            placeholder="alice@exemple.com"
-            required
-          />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#8888aa]">Rôle</label>
-            <div className="relative">
-              <select
-                value={memberRole}
-                onChange={(e) => setMemberRole(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="ADMIN">Admin</option>
-                <option value="MEMBER">Member</option>
-                <option value="VIEWER">Viewer</option>
-              </select>
-              <SelectArrow />
-            </div>
-          </div>
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" type="button" onClick={() => setShowMemberModal(false)}>
-              Annuler
-            </Button>
-            <Button type="submit" loading={addingMember}>
-              Inviter
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal éditer projet */}
-      <Modal
-        open={showEditProject}
-        onClose={() => setShowEditProject(false)}
-        title="Modifier le projet"
-      >
-        <form onSubmit={handleUpdateProject} className="flex flex-col gap-4">
-          <Input
-            label="Nom"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            placeholder="Nom du projet"
-            required
-          />
-          <Input
-            label="Description"
-            value={editDesc}
-            onChange={(e) => setEditDesc(e.target.value)}
-            placeholder="Description (optionnel)"
-          />
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" type="button" onClick={() => setShowEditProject(false)}>
-              Annuler
-            </Button>
-            <Button type="submit" loading={savingProject}>
-              Enregistrer
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Lightbox */}
-      {lightboxImages.length > 0 && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-          onClick={() => setLightboxImages([])}
-        >
-          <button
-            className="absolute top-6 right-6 text-white text-4xl leading-none hover:text-gray-300 bg-black/40 w-10 h-10 rounded-full flex items-center justify-center"
-            onClick={() => setLightboxImages([])}
-          >
-            ×
-          </button>
-          {lightboxIndex > 0 && (
-            <button
-              className="absolute left-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex((i) => i - 1);
-              }}
-            >
-              ‹
-            </button>
-          )}
-          <img
-            src={lightboxImages[lightboxIndex]?.url}
-            alt=""
-            className="max-w-4xl max-h-[80vh] rounded-xl object-contain mx-20"
-            onClick={(e) => e.stopPropagation()}
-          />
-          {lightboxIndex < lightboxImages.length - 1 && (
-            <button
-              className="absolute right-8 text-white text-5xl hover:text-gray-300 bg-black/40 rounded-full w-12 h-12 flex items-center justify-center"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex((i) => i + 1);
-              }}
-            >
-              ›
-            </button>
-          )}
-          <div className="absolute bottom-6 text-white text-sm opacity-60">
-            {lightboxIndex + 1} / {lightboxImages.length}
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
