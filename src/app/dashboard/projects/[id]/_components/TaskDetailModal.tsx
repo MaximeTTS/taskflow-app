@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -35,6 +35,11 @@ export function TaskDetailModal({
   const [editingDesc, setEditingDesc] = useState(task?.description ?? '');
   const [savingDesc, setSavingDesc] = useState(false);
 
+  useEffect(() => {
+    setEditingDesc(task?.description ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
+
   if (!task) return null;
 
   return (
@@ -61,7 +66,7 @@ export function TaskDetailModal({
             onChange={(e) => setEditingDesc(e.target.value)}
             placeholder="Ajouter une description..."
             rows={3}
-            className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none focus:border-indigo-500 resize-none transition-colors"
+            className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none hover:border-indigo-500 focus:border-indigo-500 resize-none transition-colors"
           />
           {editingDesc !== (task.description ?? '') && (
             <div className="flex gap-2 justify-end">

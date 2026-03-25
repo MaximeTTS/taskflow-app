@@ -127,11 +127,16 @@ export function useProject(projectId: string) {
   };
 
   const handleUpdateRole = async (userId: string, role: string) => {
-    await apolloClient.mutate({
-      mutation: UPDATE_MEMBER_ROLE,
-      variables: { projectId, userId, role },
-    });
-    void fetchProject();
+    try {
+      await apolloClient.mutate({
+        mutation: UPDATE_MEMBER_ROLE,
+        variables: { projectId, userId, role },
+      });
+      void fetchProject();
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du rôle:', err);
+      void fetchProject();
+    }
   };
 
   const handleUpdateProject = async (name: string, description: string) => {

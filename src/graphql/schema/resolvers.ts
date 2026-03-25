@@ -333,7 +333,7 @@ export const resolvers = {
       context: Context,
     ) => {
       if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.projectId, 'OWNER');
+      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
 
       const project = await prisma.project.findUnique({
         where: { id: args.projectId },

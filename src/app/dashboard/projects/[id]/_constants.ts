@@ -11,24 +11,23 @@ export const COLUMNS = [
     label: 'En cours',
     shortLabel: 'En cours',
     color: 'bg-indigo-500',
-    border: 'border-indigo-500/40',
+    border: 'border-[#2a2a3a]',
   },
   {
     key: 'IN_REVIEW',
     label: 'En révision',
     shortLabel: 'Révision',
     color: 'bg-amber-500',
-    border: 'border-amber-500/40',
+    border: 'border-[#2a2a3a]',
   },
   {
     key: 'DONE',
     label: 'Terminé',
     shortLabel: 'Terminé',
     color: 'bg-green-500',
-    border: 'border-green-500/40',
+    border: 'border-[#2a2a3a]',
   },
 ];
-
 export const PRIORITY_BADGE: Record<string, 'danger' | 'warning' | 'info' | 'default'> = {
   URGENT: 'danger',
   HIGH: 'warning',
@@ -51,7 +50,7 @@ export const PRIORITY_BORDER: Record<string, string> = {
 };
 
 export const SELECT_CLASS =
-  'w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] outline-none focus:border-indigo-500 appearance-none pr-10';
+  'w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] outline-none hover:border-indigo-500 focus:border-indigo-500 appearance-none pr-10 transition-colors';
 
 export const fadeInUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } };
 export const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
