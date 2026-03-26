@@ -368,6 +368,8 @@ export const resolvers = {
           description?: string;
           projectId: string;
           assigneeId?: string;
+          status?: string;
+          priority?: string;
         };
       },
       context: Context,
@@ -382,11 +384,20 @@ export const resolvers = {
           projectId: args.input.projectId,
           assigneeId: args.input.assigneeId,
           creatorId: context.user.id,
+          status: args.input.status as
+            | 'TODO'
+            | 'IN_PROGRESS'
+            | 'IN_REVIEW'
+            | 'DONE'
+            | 'CANCELLED'
+            | undefined,
+          priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
         },
         include: {
           project: true,
           assignee: true,
           creator: true,
+          images: true,
         },
       });
     },
