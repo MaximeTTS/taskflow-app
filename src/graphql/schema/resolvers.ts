@@ -370,6 +370,7 @@ export const resolvers = {
           assigneeId?: string;
           status?: string;
           priority?: string;
+          dueDate?: string;
         };
       },
       context: Context,
@@ -392,6 +393,7 @@ export const resolvers = {
             | 'CANCELLED'
             | undefined,
           priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
+          dueDate: args.input.dueDate ? new Date(args.input.dueDate) : undefined,
         },
         include: {
           project: true,
@@ -438,6 +440,7 @@ export const resolvers = {
             | 'CANCELLED'
             | undefined,
           priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
+          dueDate: args.input.dueDate !== undefined ? new Date(args.input.dueDate) : undefined,
         },
         include: {
           project: true,

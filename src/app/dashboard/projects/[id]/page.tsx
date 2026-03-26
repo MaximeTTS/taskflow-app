@@ -599,7 +599,12 @@ export default function ProjectPage() {
           onClose={() => setSelectedTask(null)}
           onUpdateTask={async (taskId, input) => {
             await handleUpdateTask(taskId, input);
-            setSelectedTask((prev) => (prev ? { ...prev, ...input } : prev));
+            // Récupère la tâche mise à jour depuis le project rafraîchi
+            setSelectedTask((prev) => {
+              if (!prev) return prev;
+              const updated = project?.tasks.find((t) => t.id === taskId);
+              return updated ? { ...updated, ...input } : { ...prev, ...input };
+            });
           }}
           onDeleteTask={(taskId) => void handleDeleteTask(taskId, () => setSelectedTask(null))}
           onUploadImage={async (file) => {

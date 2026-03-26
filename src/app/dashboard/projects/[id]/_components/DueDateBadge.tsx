@@ -1,6 +1,17 @@
 export function DueDateBadge({ dueDate }: { dueDate: string | null }) {
   if (!dueDate) return null;
-  const due = new Date(dueDate);
+
+  let due: Date;
+  const num = Number(dueDate);
+  if (!isNaN(num) && num > 1000000000000) {
+    due = new Date(num);
+  } else {
+    const str = dueDate.includes('T') ? (dueDate.split('T')[0] ?? dueDate) : dueDate;
+    const [y, m, d] = str.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    due = new Date(y, m - 1, d);
+  }
+  if (isNaN(due.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

@@ -65,6 +65,7 @@ export const UPDATE_TASK = gql`
       id
       status
       priority
+      dueDate
     }
   }
 `;

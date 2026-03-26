@@ -12,8 +12,22 @@ type Props = {
 };
 
 export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }: Props) {
-  const selected = value ? new Date(value) : null;
-
+  const selected = value
+    ? (() => {
+        // Gère les timestamps numériques (venant de la DB via GraphQL)
+        const num = Number(value);
+        if (!isNaN(num) && num > 1000000000000) {
+          const d = new Date(num);
+          return isNaN(d.getTime()) ? null : d;
+        }
+        // Gère les strings ISO ou YYYY-MM-DD
+        const str = value.includes('T') ? (value.split('T')[0] ?? value) : value;
+        const [y, m, d] = str.split('-').map(Number);
+        if (!y || !m || !d) return null;
+        const date = new Date(y, m - 1, d);
+        return isNaN(date.getTime()) ? null : date;
+      })()
+    : null;
   const formatted = selected
     ? selected.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
     : null;
@@ -114,7 +128,10 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
               onChange(null);
               return;
             }
-            onChange(date.toISOString().split('T')[0] ?? null);
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            onChange(`${y}-${m}-${d}`);
           }}
           dateFormat="dd/MM/yyyy"
           locale={fr}
