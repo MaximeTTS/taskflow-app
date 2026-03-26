@@ -259,12 +259,6 @@ npm run format       # Formater le code avec Prettier
 
 ---
 
-## 🐛 Signaler un Bug
-
-Vous avez trouvé un bug ? Créez une [issue GitHub](https://github.com/MaximeTTS/taskflow-app/issues/new)
-
----
-
 ## 📄 Licence
 
 Ce projet est sous licence [MIT](LICENSE) - Vous êtes libre de l'utiliser, le modifier et le distribuer.
@@ -274,16 +268,6 @@ Ce projet est sous licence [MIT](LICENSE) - Vous êtes libre de l'utiliser, le m
 ## 👥 Auteur
 
 **Maxime** - [@MaximeTTS](https://github.com/MaximeTTS)
-
----
-
-## 📞 Support
-
-Pour toute question ou support :
-
-- 📧 Email: [support@taskflow.com](mailto:support@taskflow.com)
-- 💬 Issues GitHub: [GitHub Issues](https://github.com/MaximeTTS/taskflow-app/issues)
-- 🐦 Twitter: [@MaximeTTS](https://twitter.com/MaximeTTS)
 
 ---
 
