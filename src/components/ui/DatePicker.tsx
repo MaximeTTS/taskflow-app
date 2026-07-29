@@ -33,93 +33,6 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
     : null;
 
   return (
-    <>
-      <style>{`
-        /* Permet au bouton de prendre toute la largeur */
-        .taskflow-datepicker { width: 100%; display: block; }
-        .taskflow-datepicker .react-datepicker-wrapper { display: block; width: 100%; }
-        .taskflow-datepicker .react-datepicker__input-container { display: block; width: 100%; }
-
-        /* Le reste de tes styles originaux (identiques) */
-        .taskflow-datepicker .react-datepicker {
-          background: #16161f;
-          border: 1px solid #2a2a3a;
-          border-radius: 12px;
-          font-family: inherit;
-          overflow: hidden;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-        }
-        .taskflow-datepicker .react-datepicker__header {
-          background: #111118;
-          border-bottom: 1px solid #2a2a3a;
-          padding: 12px 0 8px;
-        }
-        .taskflow-datepicker .react-datepicker__current-month {
-          color: #f0f0ff;
-          font-size: 14px;
-          font-weight: 600;
-          text-transform: capitalize;
-        }
-        .taskflow-datepicker .react-datepicker__day-name {
-          color: #55556a;
-          font-size: 11px;
-          font-weight: 500;
-          text-transform: uppercase;
-          width: 32px;
-          line-height: 32px;
-        }
-        .taskflow-datepicker .react-datepicker__day {
-          color: #8888aa;
-          width: 32px;
-          line-height: 32px;
-          border-radius: 8px;
-          font-size: 13px;
-          margin: 1px;
-          transition: all 0.15s;
-        }
-        .taskflow-datepicker .react-datepicker__day:hover {
-          background: #2a2a3a;
-          color: #f0f0ff;
-        }
-        .taskflow-datepicker .react-datepicker__day--selected {
-          background: #6366f1 !important;
-          color: #fff !important;
-          font-weight: 600;
-        }
-        .taskflow-datepicker .react-datepicker__day--today {
-          color: #6366f1;
-          font-weight: 600;
-        }
-        .taskflow-datepicker .react-datepicker__day--outside-month {
-          color: #2a2a3a;
-        }
-        .taskflow-datepicker .react-datepicker__navigation-icon::before {
-          border-color: #8888aa;
-        }
-        .taskflow-datepicker .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-          border-color: #f0f0ff;
-        }
-        .taskflow-datepicker .react-datepicker__triangle { display: none; }
-        .taskflow-datepicker .react-datepicker__month-select,
-        .taskflow-datepicker .react-datepicker__year-select {
-          background: #2a2a3a;
-          color: #f0f0ff;
-          border: 1px solid #3a3a50;
-          border-radius: 6px;
-          padding: 2px 6px;
-          font-size: 13px;
-          outline: none;
-          cursor: pointer;
-        }
-        .taskflow-datepicker .react-datepicker__month-dropdown-container,
-        .taskflow-datepicker .react-datepicker__year-dropdown-container {
-          margin: 0 4px;
-        }
-        .taskflow-datepicker .react-datepicker-popper {
-          z-index: 9999;
-        }
-      `}</style>
-
       <div className="taskflow-datepicker">
         <ReactDatePicker
           selected={selected}
@@ -146,10 +59,16 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
           customInput={
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-3 w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg text-sm text-left hover:border-indigo-500 transition-colors"
+              className="flex items-center gap-2 px-3.5 py-2.5 w-full rounded-xl text-sm text-left transition-colors"
+              style={{
+                background: 'var(--tf-input-bg)',
+                border: '1px solid var(--tf-input-border)',
+                color: 'var(--tf-text)',
+              }}
             >
               <svg
-                className="w-4 h-4 text-[#8888aa] shrink-0"
+                className="w-4 h-4 shrink-0"
+                style={{ color: 'var(--tf-text-muted)' }}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -161,8 +80,7 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
 
-              {/* Le placeholder de base est exactement comme avant */}
-              <span className={formatted ? 'text-[#f0f0ff]' : 'text-[#55556a]'}>
+              <span style={{ color: formatted ? 'var(--tf-text)' : 'var(--tf-text-faint)' }}>
                 {formatted ?? placeholder}
               </span>
 
@@ -170,10 +88,11 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
                 <span
                   onClick={(e) => {
                     e.preventDefault();
-                    e.stopPropagation(); // Évite d'ouvrir le calendrier quand on clique sur la croix
+                    e.stopPropagation();
                     onChange(null);
                   }}
-                  className="ml-auto text-[#55556a] hover:text-red-400 transition-colors text-lg leading-none cursor-pointer px-2"
+                  className="ml-auto hover:text-red-400 transition-colors text-lg leading-none cursor-pointer px-2"
+                  style={{ color: 'var(--tf-text-faint)' }}
                 >
                   ×
                 </span>
@@ -182,6 +101,5 @@ export function DatePicker({ value, onChange, placeholder = 'Choisir une date' }
           }
         />
       </div>
-    </>
   );
 }

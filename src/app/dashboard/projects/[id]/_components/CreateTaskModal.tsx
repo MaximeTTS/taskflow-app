@@ -95,12 +95,23 @@ export function CreateTaskModal({ open, onClose, members, onSubmit }: Props) {
           placeholder="Titre de la tâche"
           required
         />
-        <Input
-          label="Description"
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          placeholder="Description (optionnel)"
-        />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>
+            Description
+          </label>
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Description (optionnel) — les sauts de ligne sont conservés"
+            rows={4}
+            className="w-full rounded-xl px-3.5 py-2.5 text-sm outline-none resize-y transition-colors placeholder:opacity-50 focus:ring-2 focus:ring-[color:var(--tf-accent)]/30"
+            style={{
+              background: 'var(--tf-input-bg)',
+              border: '1px solid var(--tf-input-border)',
+              color: 'var(--tf-text)',
+            }}
+          />
+        </div>
 
         <div className="flex flex-col gap-2">
           <label className="text-md font-medium text-[#8888aa]">Priorité</label>

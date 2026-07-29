@@ -64,9 +64,14 @@ export function TaskDetailModal({
           <textarea
             value={editingDesc}
             onChange={(e) => setEditingDesc(e.target.value)}
-            placeholder="Ajouter une description..."
-            rows={3}
-            className="w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] placeholder-[#55556a] outline-none hover:border-indigo-500 focus:border-indigo-500 resize-none transition-colors"
+            placeholder="Ajouter une description... (les sauts de ligne sont conservés)"
+            rows={5}
+            className="w-full rounded-xl px-3.5 py-2.5 text-sm outline-none resize-y transition-colors focus:ring-2 focus:ring-[color:var(--tf-accent)]/30 leading-relaxed"
+            style={{
+              background: 'var(--tf-input-bg)',
+              border: '1px solid var(--tf-input-border)',
+              color: 'var(--tf-text)',
+            }}
           />
           {editingDesc !== (task.description ?? '') && (
             <div className="flex gap-2 justify-end">

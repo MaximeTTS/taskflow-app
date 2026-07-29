@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { apolloClient } from '@/lib/apollo-client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import Link from 'next/link';
+import { AuthShell } from '@/components/tf/AuthShell';
 
 const REGISTER_MUTATION = gql`
   mutation Register($input: RegisterInput!) {
@@ -54,58 +54,46 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-[#f0f0ff] mb-2">
-            Task<span className="text-indigo-400">Flow</span>
+    <AuthShell
+      title="Créer un compte"
+      subtitle="Quelques secondes pour rejoindre votre première équipe."
+      altPrompt="Déjà un compte ?"
+      altLabel="Se connecter"
+      altHref="/login"
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+        {error && (
+          <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
-          <p className="text-sm text-[#8888aa]">Créez votre compte</p>
-        </div>
-
-        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-2xl p-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-                <p className="text-red-400 text-sm">{error}</p>
-              </div>
-            )}
-            <Input
-              label="Nom"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Maxime Dupont"
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="vous@exemple.com"
-              required
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-            <Button type="submit" loading={loading} className="w-full mt-2">
-              Créer mon compte
-            </Button>
-          </form>
-
-          <p className="text-center text-[#55556a] text-sm mt-5">
-            Déjà un compte ?{' '}
-            <Link href="/login" className="text-indigo-400 hover:text-indigo-300">
-              Se connecter
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+        )}
+        <Input
+          label="Nom complet"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Maxime Turquet"
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="vous@exemple.com"
+          required
+        />
+        <Input
+          label="Mot de passe"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+        />
+        <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
+          Créer mon compte <span>→</span>
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

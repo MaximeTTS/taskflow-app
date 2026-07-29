@@ -20,9 +20,10 @@ export function DueDateBadge({ dueDate }: { dueDate: string | null }) {
 
   return (
     <div
-      className={`flex items-center gap-1 text-[14px] mb-2 ${
-        isLate ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-[#55556a]'
+      className={`flex items-center gap-1 text-[12px] mb-2 ${
+        isLate ? 'text-red-400' : isUrgent ? 'text-amber-400' : ''
       }`}
+      style={!isLate && !isUrgent ? { color: 'var(--tf-text-faint)' } : undefined}
     >
       <svg
         className="w-3 h-3 shrink-0"

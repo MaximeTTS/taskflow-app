@@ -3,14 +3,16 @@ export const COLUMNS = [
     key: 'TODO',
     label: 'À faire',
     shortLabel: 'À faire',
-    color: 'bg-[#2a2a3a]',
+    color: 'bg-slate-400',
+    dot: '#94a3b8',
     border: 'border-[#2a2a3a]',
   },
   {
     key: 'IN_PROGRESS',
     label: 'En cours',
     shortLabel: 'En cours',
-    color: 'bg-indigo-500',
+    color: 'bg-blue-500',
+    dot: '#3b82f6',
     border: 'border-[#2a2a3a]',
   },
   {
@@ -18,6 +20,7 @@ export const COLUMNS = [
     label: 'En révision',
     shortLabel: 'Révision',
     color: 'bg-amber-500',
+    dot: '#f59e0b',
     border: 'border-[#2a2a3a]',
   },
   {
@@ -25,6 +28,7 @@ export const COLUMNS = [
     label: 'Terminé',
     shortLabel: 'Terminé',
     color: 'bg-green-500',
+    dot: '#22c55e',
     border: 'border-[#2a2a3a]',
   },
 ];
@@ -50,7 +54,7 @@ export const PRIORITY_BORDER: Record<string, string> = {
 };
 
 export const SELECT_CLASS =
-  'w-full bg-[#16161f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-base text-[#f0f0ff] outline-none hover:border-indigo-500 focus:border-indigo-500 appearance-none pr-10 transition-colors';
+  'w-full rounded-xl px-3.5 py-2.5 text-sm outline-none appearance-none pr-10 transition-colors bg-[var(--tf-input-bg)] border border-[var(--tf-input-border)] text-[var(--tf-text)] focus:ring-2 focus:ring-[color:var(--tf-accent)]/30';
 
 export const fadeInUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } };
 export const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };

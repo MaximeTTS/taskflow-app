@@ -1,26 +1,47 @@
-import { type ButtonHTMLAttributes } from 'react';
+'use client';
+
+import { type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { motion, type HTMLMotionProps } from 'framer-motion';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: Variant;
-  size?: Size;
-  loading?: boolean;
-};
-
-const styles: Record<Variant, string> = {
-  primary: 'bg-indigo-500 hover:bg-indigo-600 text-white border-transparent',
-  secondary:
-    'bg-[#16161f] hover:bg-[#1e1e2a] text-[#f0f0ff] border-[#2a2a3a] hover:border-[#3a3a50]',
-  ghost: 'bg-transparent hover:bg-[#1e1e2a] text-[#8888aa] hover:text-[#f0f0ff] border-transparent',
-  danger: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20',
-};
+type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof HTMLMotionProps<'button'>> &
+  Omit<HTMLMotionProps<'button'>, 'children'> & {
+    variant?: Variant;
+    size?: Size;
+    loading?: boolean;
+    children?: ReactNode;
+  };
 
 const sizes: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-5 py-2.5 text-sm',
+  sm: 'px-3.5 py-1.5 text-xs',
+  md: 'px-4 py-2.5 text-sm',
+  lg: 'px-5 py-3 text-sm',
+};
+
+const variantStyle: Record<Variant, CSSProperties> = {
+  primary: {
+    background: 'var(--tf-accent)',
+    color: 'var(--tf-accent-text)',
+    border: '1px solid transparent',
+    boxShadow: '0 6px 16px -8px rgba(0,0,0,0.35)',
+  },
+  secondary: {
+    background: 'var(--tf-pill-bg)',
+    color: 'var(--tf-text)',
+    border: '1px solid var(--tf-pill-border)',
+  },
+  ghost: {
+    background: 'transparent',
+    color: 'var(--tf-text-muted)',
+    border: '1px solid transparent',
+  },
+  danger: {
+    background: 'rgba(239,68,68,0.12)',
+    color: '#ef4444',
+    border: '1px solid rgba(239,68,68,0.3)',
+  },
 };
 
 export function Button({
@@ -30,40 +51,35 @@ export function Button({
   disabled,
   className = '',
   children,
+  style,
   ...props
 }: ButtonProps) {
+  const isGlass = variant === 'secondary';
+  const isDisabled = disabled ?? loading;
   return (
-    <button
-      disabled={disabled ?? loading}
+    <motion.button
+      disabled={isDisabled}
+      whileHover={isDisabled ? undefined : { y: -1.5, scale: 1.015 }}
+      whileTap={isDisabled ? undefined : { scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 26 }}
       className={`
         inline-flex items-center justify-center gap-2
-        font-medium rounded-lg border
-        transition-all duration-150
+        font-semibold rounded-full
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${styles[variant]}
+        ${isGlass ? 'tf-blur' : ''}
         ${sizes[size]}
         ${className}
       `}
+      style={{ ...variantStyle[variant], ...style }}
       {...props}
     >
       {loading ? (
         <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       ) : null}
       {children}
-    </button>
+    </motion.button>
   );
 }

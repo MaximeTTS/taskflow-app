@@ -5,18 +5,16 @@ import { useRouter } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import {
-  Sidebar,
-  SidebarProvider,
-  MobileMenuButton,
-  SidebarIcons,
-} from '@/components/layout/Sidebar';
-import { motion } from 'framer-motion';
+import { AppShell } from '@/components/tf/AppShell';
+import { GlassCard, TfAvatar, Icon } from '@/components/tf/atoms';
+import { CountUp } from '@/components/tf/CountUp';
+import { stagger, fadeUp } from '@/components/tf/motion';
+
+const SPARK = 'M0 18 L12 14 L24 16 L36 10 L48 12 L60 8 L72 11 L84 4 L100 6';
 
 const GET_PROJECTS = gql`
   query GetProjects {
@@ -69,30 +67,11 @@ type Project = {
   members: Member[];
 };
 
-// ─── Animation variants ───
-
-const fadeInUp = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0 },
-};
-
-const staggerContainer = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const fadeIn = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1 },
-};
+const ACCENTS = ['#6366f1', '#8b5cf6', '#3b82f6', '#06b6d4', '#7c3aed', '#0ea5e9'];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -114,10 +93,7 @@ export default function DashboardPage() {
 
   const fetchProjects = async () => {
     try {
-      const { data } = await apolloClient.query({
-        query: GET_PROJECTS,
-        fetchPolicy: 'network-only',
-      });
+      const { data } = await apolloClient.query({ query: GET_PROJECTS, fetchPolicy: 'network-only' });
       setProjects((data as { projects: Project[] }).projects);
     } catch (err) {
       console.error(err);
@@ -146,215 +122,223 @@ export default function DashboardPage() {
   };
 
   const totalTasks = projects.reduce((acc, p) => acc + p.tasks.length, 0);
-  const doneTasks = projects.reduce(
-    (acc, p) => acc + p.tasks.filter((t) => t.status === 'DONE').length,
-    0,
-  );
+  const doneTasks = projects.reduce((acc, p) => acc + p.tasks.filter((t) => t.status === 'DONE').length, 0);
   const activeProjects = projects.filter((p) =>
     p.tasks.some((t) => t.status !== 'DONE' && t.status !== 'CANCELLED'),
   );
+  const memberCount = [...new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)))].length;
 
-  const navItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: SidebarIcons.dashboard, active: true },
-    { label: 'Profil', path: '/profile', icon: SidebarIcons.profile },
-    {
-      label: 'Déconnexion',
-      icon: SidebarIcons.logout,
-      variant: 'danger' as const,
-      onClick: () => {
-        logout();
-        router.push('/login');
-      },
-    },
+  const stats = [
+    { id: 'projects', label: 'Projets actifs', value: activeProjects.length, color: '#6366f1' },
+    { id: 'tasks', label: 'Tâches totales', value: totalTasks, color: '#3b82f6' },
+    { id: 'done', label: 'Terminées', value: doneTasks, color: '#10b981' },
+    { id: 'team', label: 'Membres', value: memberCount, color: '#8b5cf6' },
   ];
 
   if (loading)
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-[#8888aa] text-base">Chargement...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--tf-text-muted)' }}>
+        Chargement...
       </div>
     );
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen bg-[#0a0a0f] flex">
-        <Sidebar navItems={navItems} />
+    <AppShell breadcrumb={['Dashboard']} active="dashboard">
+      {/* Greeting + CTA */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.2, 0.7, 0.3, 1] }}
+        className="flex items-end justify-between gap-4 flex-wrap mb-6"
+      >
+        <div>
+          <h1 className="text-3xl lg:text-4xl font-bold" style={{ letterSpacing: '-0.03em' }}>
+            Bonjour, {user?.name ?? user?.email}
+          </h1>
+          <p className="mt-2 text-[15px]" style={{ color: 'var(--tf-text-muted)' }}>
+            <b style={{ color: 'var(--tf-text)' }}>{activeProjects.length} projet(s)</b> en cours.
+          </p>
+        </div>
+        <Button size="lg" onClick={() => setShowModal(true)}>
+          <Icon.Plus /> Nouveau projet
+        </Button>
+      </motion.div>
 
-        <main className="lg:ml-60 flex-1 p-4 sm:p-6 lg:p-8">
-          {/* Header */}
+      {/* Stats */}
+      <motion.div
+        variants={stagger(0.08)}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8"
+      >
+        {stats.map((s) => (
           <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-            transition={{ duration: 0.4 }}
-            className="flex items-center justify-between mb-6 lg:mb-8"
+            key={s.id}
+            variants={fadeUp}
+            className="tf-panel relative overflow-hidden p-4 lg:p-5 h-full"
+            style={{ borderRadius: 'calc(24px * var(--tf-radius-scale, 1))' }}
           >
-            <div className="flex items-center gap-3">
-              <MobileMenuButton />
-              <div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-[#f0f0ff]">Dashboard</h1>
-                <p className="text-[#8888aa] mt-1 text-sm lg:text-base">
-                  Bienvenue, {user?.name ?? user?.email} 👋
-                </p>
-              </div>
+            <div
+              className="absolute -top-8 -right-8 w-24 h-24 pointer-events-none"
+              style={{ background: `radial-gradient(closest-side, ${s.color}66, transparent)` }}
+            />
+            <div className="flex items-start justify-between">
+              <span className="text-[13px] font-medium" style={{ color: 'var(--tf-text-muted)' }}>
+                {s.label}
+              </span>
+              <span className="w-2 h-2 rounded-full" style={{ background: s.color, boxShadow: `0 0 12px ${s.color}` }} />
             </div>
-            <div className="hidden sm:block">
-              <Button size="lg" onClick={() => setShowModal(true)}>
-                + Nouveau projet
-              </Button>
+            <div className="mt-2 text-3xl lg:text-4xl font-bold" style={{ color: s.color, letterSpacing: '-0.03em' }}>
+              <CountUp value={s.value} />
             </div>
-            <div className="sm:hidden">
-              <Button size="sm" onClick={() => setShowModal(true)}>
-                + Projet
-              </Button>
-            </div>
+            <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="mt-2 w-full h-6 block">
+              <defs>
+                <linearGradient id={`sg-${s.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.color} stopOpacity="0.35" />
+                  <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={`${SPARK} L100 24 L0 24 Z`} fill={`url(#sg-${s.id})`} />
+              <path d={SPARK} fill="none" stroke={s.color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
           </motion.div>
+        ))}
+      </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={staggerContainer}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8 lg:mb-10"
-          >
-            {[
-              { label: 'Projets actifs', value: activeProjects.length, color: 'text-indigo-400' },
-              { label: 'Tâches totales', value: totalTasks, color: 'text-[#f0f0ff]' },
-              { label: 'Terminées', value: doneTasks, color: 'text-green-400' },
-              {
-                label: 'Membres',
-                value: [...new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)))]
-                  .length,
-                color: 'text-amber-400',
-              },
-            ].map((s) => (
+      {/* Projects */}
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="text-xl lg:text-2xl font-semibold" style={{ letterSpacing: '-0.015em' }}>
+          Mes projets
+        </h2>
+        <span className="text-sm" style={{ color: 'var(--tf-text-faint)' }}>
+          {projects.length} projet(s) · {totalTasks} tâches
+        </span>
+      </div>
+
+      {projects.length === 0 ? (
+        <GlassCard style={{ padding: 48, textAlign: 'center' }}>
+          <p className="text-base" style={{ color: 'var(--tf-text-muted)' }}>
+            Aucun projet — créez-en un !
+          </p>
+        </GlassCard>
+      ) : (
+        <motion.div
+          variants={stagger(0.07)}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5"
+        >
+          {projects.map((project, idx) => {
+            const done = project.tasks.filter((t) => t.status === 'DONE').length;
+            const total = project.tasks.length;
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const accent = ACCENTS[idx % ACCENTS.length];
+            return (
               <motion.div
-                key={s.label}
-                variants={fadeInUp}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-                className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-4 lg:p-5"
+                key={project.id}
+                variants={fadeUp}
+                whileHover={{ y: -5 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+                className="tf-card-glass cursor-pointer overflow-hidden h-full"
+                style={{ padding: 22, borderRadius: 'calc(28px * var(--tf-radius-scale, 1))' }}
               >
-                <div className="text-sm lg:text-lg text-[#8888aa] mb-1 lg:mb-2">{s.label}</div>
-                <div className={`text-2xl lg:text-3xl font-bold ${s.color}`}>{s.value}</div>
-              </motion.div>
-            ))}
-          </motion.div>
+                <div className="flex flex-col h-full relative">
+                  <div
+                    className="absolute -top-12 -right-12 w-44 h-44 pointer-events-none"
+                    style={{ background: `radial-gradient(closest-side, ${accent}55, transparent)` }}
+                  />
+                  <div className="flex items-start justify-between relative">
+                    <div
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white"
+                      style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)`, boxShadow: `0 6px 14px ${accent}55` }}
+                    >
+                      <Icon.Board />
+                    </div>
+                    <span
+                      className="px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                      style={{ background: `${accent}22`, color: accent, border: `1px solid ${accent}33` }}
+                    >
+                      {pct === 100 ? 'Terminé' : 'En cours'}
+                    </span>
+                  </div>
 
-          {/* Projects */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="flex items-center justify-between mb-4 lg:mb-5"
-          >
-            <h2 className="text-xl lg:text-2xl font-semibold text-[#f0f0ff]">Mes projets</h2>
-            <span className="text-sm lg:text-lg text-[#8888aa]">{projects.length} projet(s)</span>
-          </motion.div>
-
-          {projects.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-              className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-10 lg:p-16 text-center"
-            >
-              <p className="text-[#8888aa] text-base">Aucun projet — créez-en un !</p>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={staggerContainer}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5"
-            >
-              {projects.map((project) => {
-                const done = project.tasks.filter((t) => t.status === 'DONE').length;
-                const total = project.tasks.length;
-                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                return (
-                  <motion.div
-                    key={project.id}
-                    variants={fadeInUp}
-                    transition={{ duration: 0.4, ease: 'easeOut' }}
-                    whileHover={{ y: -2, transition: { duration: 0.2 } }}
-                    onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                    className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 lg:p-6 cursor-pointer hover:border-[#3a3a50] transition-colors group"
+                  <h3 className="mt-4 mb-1.5 text-[17px] font-semibold" style={{ letterSpacing: '-0.01em' }}>
+                    {project.name}
+                  </h3>
+                  <p
+                    className="text-[13px] leading-relaxed line-clamp-2"
+                    style={{ color: 'var(--tf-text-muted)', minHeight: 38 }}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-lg lg:text-xl font-semibold text-[#f0f0ff] group-hover:text-indigo-400 transition-colors">
-                        {project.name}
-                      </h3>
-                      <Badge variant={pct === 100 ? 'success' : 'purple'}>
-                        {pct === 100 ? 'Terminé' : 'En cours'}
-                      </Badge>
-                    </div>
+                    {project.description || 'Pas de description.'}
+                  </p>
 
-                    {project.description && (
-                      <p className="text-sm lg:text-md text-[#8888aa] mb-4 line-clamp-2">
-                        {project.description}
-                      </p>
-                    )}
-
-                    <div className="flex gap-0.5 mb-4 h-1.5">
-                      {project.tasks.length > 0 ? (
-                        <>
-                          <div
-                            className="rounded-full bg-green-500 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                          <div className="rounded-full bg-[#2a2a3a] flex-1" />
-                        </>
-                      ) : (
-                        <div className="flex-1 rounded-full bg-[#2a2a3a]" />
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex -space-x-1.5">
-                        {project.members.slice(0, 4).map((m) => (
-                          <div key={m.id} className="ring-2 ring-[#16161f] rounded-full">
-                            <Avatar name={m.user.name} avatar={m.user.avatar} size="sm" />
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-sm lg:text-md text-[#8888aa]">
+                  <div className="mt-4">
+                    <div className="flex justify-between text-[12px] mb-1.5" style={{ color: 'var(--tf-text-muted)' }}>
+                      <span>
                         {done}/{total} tâches
                       </span>
+                      <span style={{ color: 'var(--tf-text)', fontWeight: 600 }}>{pct}%</span>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          )}
-        </main>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--tf-soft)' }}>
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: `linear-gradient(90deg, ${accent}, ${accent}cc)`,
+                          boxShadow: `0 0 12px ${accent}88`,
+                        }}
+                      />
+                    </div>
+                  </div>
 
-        <Modal open={showModal} onClose={() => setShowModal(false)} title="Nouveau projet">
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
-            <Input
-              label="Nom du projet"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Mon super projet"
-              required
-            />
-            <Input
-              label="Description"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="Description (optionnel)"
-            />
-            <div className="flex gap-3 justify-end">
-              <Button variant="ghost" type="button" onClick={() => setShowModal(false)}>
-                Annuler
-              </Button>
-              <Button type="submit" loading={creating}>
-                Créer
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      </div>
-    </SidebarProvider>
+                  <div
+                    className="mt-4 pt-4 flex items-center justify-between"
+                    style={{ borderTop: '1px solid var(--tf-hairline)' }}
+                  >
+                    <div className="flex">
+                      {project.members.slice(0, 4).map((m, i) => (
+                        <div key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                          <TfAvatar name={m.user.name} avatar={m.user.avatar} size={26} ring />
+                        </div>
+                      ))}
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: 'var(--tf-text)' }}>
+                      Ouvrir <span>→</span>
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Nouveau projet">
+        <form onSubmit={handleCreate} className="flex flex-col gap-4">
+          <Input
+            label="Nom du projet"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Mon super projet"
+            required
+          />
+          <Input
+            label="Description"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Description (optionnel)"
+          />
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" type="button" onClick={() => setShowModal(false)}>
+              Annuler
+            </Button>
+            <Button type="submit" loading={creating}>
+              Créer
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </AppShell>
   );
 }

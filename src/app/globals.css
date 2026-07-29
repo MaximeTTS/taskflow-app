@@ -1,35 +1,649 @@
 @import 'tailwindcss';
 
+/* ─────────────────────────────────────────────────────────────
+   TaskFlow v2 — Liquid Glass design tokens
+   Two variants flip on <html data-tf-variant="...">:
+     verdant — light (default)
+     astral  — dark
+   Components reference these CSS vars directly (in Tailwind arbitrary
+   values or inline styles), so a single attribute swap reskins the app.
+   ───────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #0a0a0f;
-  --foreground: #f0f0ff;
+  /* Live-tweakable glass knobs */
+  --tf-blur: 36px;
+  --tf-sat: 160%;
+  --tf-radius-scale: 1;
+
+  /* ── Verdant (light) — clean white, neutral ── */
+  --tf-app-bg: #f3f4f6;
+  --tf-text: #0a0b0d;
+  --tf-text-muted: rgba(0, 0, 0, 0.58);
+  --tf-text-faint: rgba(0, 0, 0, 0.4);
+  --tf-hairline: rgba(0, 0, 0, 0.08);
+
+  --tf-panel-bg: rgba(255, 255, 255, 0.6);
+  --tf-panel-border: rgba(0, 0, 0, 0.07);
+  --tf-panel-shadow:
+    0 18px 44px -22px rgba(15, 23, 42, 0.18),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+
+  --tf-card-bg: rgba(255, 255, 255, 0.5);
+  --tf-card-bg-hover: rgba(255, 255, 255, 0.74);
+  --tf-card-border: rgba(0, 0, 0, 0.07);
+  --tf-card-shadow:
+    0 10px 26px -16px rgba(15, 23, 42, 0.16),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  --tf-card-shadow-hover: 0 22px 44px -18px rgba(15, 23, 42, 0.24);
+
+  --tf-pill-bg: rgba(255, 255, 255, 0.62);
+  --tf-pill-border: rgba(0, 0, 0, 0.06);
+
+  --tf-input-bg: rgba(255, 255, 255, 0.72);
+  --tf-input-border: rgba(0, 0, 0, 0.1);
+
+  --tf-modal-bg: rgba(255, 255, 255, 0.86);
+  --tf-overlay-bg: rgba(15, 23, 42, 0.3);
+
+  --tf-soft: rgba(0, 0, 0, 0.05);
+  --tf-soft-hover: rgba(0, 0, 0, 0.09);
+
+  --tf-accent: #3b82f6;
+  --tf-accent-solid: #3b82f6;
+  --tf-accent-text: #ffffff;
+  --tf-brand: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+
+  /* Mesh background base + blob colors (light) — clean neutral white */
+  --tf-bg-base: radial-gradient(125% 125% at 50% -10%, #ffffff 0%, #f4f5f7 58%, #edeef1 100%);
+  --tf-blob-1: rgba(99, 102, 241, 0.12);
+  --tf-blob-2: rgba(59, 130, 246, 0.1);
+  --tf-blob-3: rgba(148, 163, 184, 0.12);
+  --tf-blob-4: rgba(139, 92, 246, 0.09);
+  --tf-stars-opacity: 0;
+  --tf-video-scrim: linear-gradient(180deg, rgba(244, 246, 251, 0.46) 0%, rgba(244, 246, 251, 0.52) 50%, rgba(244, 246, 251, 0.62) 100%);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-tf-variant='astral'] {
+  --tf-app-bg: #060607;
+  --tf-text: #ffffff;
+  --tf-text-muted: rgba(255, 255, 255, 0.6);
+  --tf-text-faint: rgba(255, 255, 255, 0.42);
+  --tf-hairline: rgba(255, 255, 255, 0.1);
+
+  --tf-panel-bg: rgba(28, 28, 32, 0.55);
+  --tf-panel-border: rgba(255, 255, 255, 0.1);
+  --tf-panel-shadow: 0 24px 56px -24px rgba(0, 0, 0, 0.7);
+
+  --tf-card-bg: rgba(34, 34, 38, 0.45);
+  --tf-card-bg-hover: rgba(48, 48, 54, 0.6);
+  --tf-card-border: rgba(255, 255, 255, 0.09);
+  --tf-card-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.6);
+  --tf-card-shadow-hover: 0 28px 54px -20px rgba(0, 0, 0, 0.7);
+
+  --tf-pill-bg: rgba(24, 24, 28, 0.6);
+  --tf-pill-border: rgba(255, 255, 255, 0.1);
+
+  --tf-input-bg: rgba(255, 255, 255, 0.06);
+  --tf-input-border: rgba(255, 255, 255, 0.12);
+
+  --tf-modal-bg: rgba(20, 20, 23, 0.85);
+  --tf-overlay-bg: rgba(0, 0, 0, 0.6);
+
+  --tf-soft: rgba(255, 255, 255, 0.07);
+  --tf-soft-hover: rgba(255, 255, 255, 0.13);
+
+  --tf-accent: #3b82f6;
+  --tf-accent-solid: #3b82f6;
+  --tf-accent-text: #ffffff;
+
+  /* Mesh background base + blob colors (dark) — near-black, restrained */
+  --tf-bg-base: radial-gradient(125% 125% at 50% -10%, #16161a 0%, #0b0b0e 55%, #000000 100%);
+  --tf-blob-1: rgba(99, 102, 241, 0.16);
+  --tf-blob-2: rgba(59, 130, 246, 0.12);
+  --tf-blob-3: rgba(120, 120, 140, 0.12);
+  --tf-blob-4: rgba(139, 92, 246, 0.12);
+  --tf-stars-opacity: 0.5;
+  --tf-video-scrim: linear-gradient(180deg, rgba(5, 6, 15, 0.48) 0%, rgba(5, 6, 15, 0.55) 50%, rgba(5, 6, 15, 0.64) 100%);
+}
+
+html {
+  background: var(--tf-app-bg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--tf-app-bg);
+  color: var(--tf-text);
+  font-family:
+    var(--font-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Font picker — explicit per-choice rules (resolve reliably on <body>) */
+html[data-tf-font='jakarta'] body {
+  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+html[data-tf-font='inter'] body {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+html[data-tf-font='sora'] body {
+  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+html[data-tf-font='mono'] body {
+  font-family: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+/* Smooth theme cross-fade for colors/shadows across the app */
+.tf-pill,
+.tf-panel,
+.tf-card-glass,
+.tf-bg,
+body {
+  transition:
+    background-color 0.5s ease,
+    background 0.5s ease,
+    border-color 0.5s ease,
+    box-shadow 0.5s ease,
+    color 0.5s ease;
 }
 
 ::selection {
-  background: #6366f120;
-  color: #f0f0ff;
+  background: #6366f130;
+  color: var(--tf-text);
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #111118;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3a3a50;
-  border-radius: 3px;
+  background: rgba(120, 120, 140, 0.4);
+  border-radius: 4px;
+}
+
+/* ── Reusable glass utilities ── */
+.tf-blur {
+  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+}
+
+.tf-panel {
+  background-color: var(--tf-panel-bg);
+  border: 1px solid var(--tf-panel-border);
+  box-shadow: var(--tf-panel-shadow);
+  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+}
+
+.tf-pill {
+  background-color: var(--tf-pill-bg);
+  border: 1px solid var(--tf-pill-border);
+  box-shadow: var(--tf-panel-shadow);
+  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+}
+
+.tf-card-glass {
+  background-color: var(--tf-card-bg);
+  border: 1px solid var(--tf-card-border);
+  box-shadow: var(--tf-card-shadow);
+  backdrop-filter: blur(var(--tf-card-blur, var(--tf-blur))) saturate(var(--tf-sat));
+  -webkit-backdrop-filter: blur(var(--tf-card-blur, var(--tf-blur))) saturate(var(--tf-sat));
+}
+
+@keyframes tfPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(74, 222, 128, 0);
+  }
+}
+.tf-presence {
+  animation: tfPulse 2.4s ease-out infinite;
+}
+
+@keyframes tfModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.tf-modal {
+  animation: tfModalIn 0.28s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes tfOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tf-overlay {
+  animation: tfOverlayIn 0.22s ease both;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Animated mesh-gradient background
+   ───────────────────────────────────────────────────────────── */
+.tf-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--tf-bg-base);
+}
+
+/* Video background */
+.tf-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.tf-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--tf-video-scrim);
+}
+
+.tf-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.7;
+  will-change: transform;
+}
+.tf-blob-1 {
+  width: 48vw;
+  height: 48vw;
+  left: -8vw;
+  top: -8vw;
+  background: radial-gradient(circle at 50% 50%, var(--tf-blob-1), transparent 70%);
+  animation: tfDrift1 18s ease-in-out infinite;
+}
+.tf-blob-2 {
+  width: 44vw;
+  height: 44vw;
+  right: -8vw;
+  top: -6vw;
+  background: radial-gradient(circle at 50% 50%, var(--tf-blob-2), transparent 70%);
+  animation: tfDrift2 22s ease-in-out infinite;
+}
+.tf-blob-3 {
+  width: 52vw;
+  height: 52vw;
+  left: 4vw;
+  bottom: -24vw;
+  background: radial-gradient(circle at 50% 50%, var(--tf-blob-3), transparent 70%);
+  animation: tfDrift3 20s ease-in-out infinite;
+}
+.tf-blob-4 {
+  width: 42vw;
+  height: 42vw;
+  right: 0vw;
+  bottom: -20vw;
+  background: radial-gradient(circle at 50% 50%, var(--tf-blob-4), transparent 70%);
+  animation: tfDrift4 25s ease-in-out infinite;
+}
+
+@keyframes tfDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(14vw, 10vh) scale(1.15); }
+  66% { transform: translate(6vw, 18vh) scale(0.95); }
+}
+@keyframes tfDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  33% { transform: translate(-13vw, 12vh) scale(0.92); }
+  66% { transform: translate(-4vw, 4vh) scale(1.12); }
+}
+@keyframes tfDrift3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(12vw, -12vh) scale(1.12); }
+  66% { transform: translate(2vw, -4vh) scale(0.94); }
+}
+@keyframes tfDrift4 {
+  0%, 100% { transform: translate(0, 0) scale(0.98); }
+  33% { transform: translate(-12vw, -8vh) scale(1.1); }
+  66% { transform: translate(-3vw, -16vh) scale(0.95); }
+}
+
+/* Slow rotating aurora wash — adds life on both themes */
+.tf-aurora {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160vmax;
+  height: 160vmax;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    var(--tf-blob-1),
+    transparent 25%,
+    var(--tf-blob-3),
+    transparent 50%,
+    var(--tf-blob-2),
+    transparent 75%,
+    var(--tf-blob-4),
+    transparent 100%
+  );
+  filter: blur(110px);
+  opacity: 0.16;
+  animation: tfAuroraSpin 70s linear infinite;
+  will-change: transform;
+}
+@keyframes tfAuroraSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Fine star field for the dark theme (fades out in light) */
+.tf-stars {
+  position: absolute;
+  inset: 0;
+  opacity: var(--tf-stars-opacity);
+  transition: opacity 0.6s ease;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1px 1px at 70% 20%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 40% 60%, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(1px 1px at 85% 50%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 55% 80%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 10% 75%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 90% 85%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 30% 12%, rgba(255, 255, 255, 0.7), transparent);
+  background-repeat: repeat;
+  background-size: 420px 420px;
+  animation: tfTwinkle 6s ease-in-out infinite;
+}
+@keyframes tfTwinkle {
+  0%, 100% { opacity: calc(var(--tf-stars-opacity) * 0.55); }
+  50% { opacity: var(--tf-stars-opacity); }
+}
+
+/* Subtle film grain for premium texture */
+.tf-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Hover-lift card with specular highlight
+   ───────────────────────────────────────────────────────────── */
+.tf-hover-card {
+  position: relative;
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
+    box-shadow 0.3s ease,
+    background-color 0.3s ease;
+  will-change: transform;
+}
+.tf-hover-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 36%);
+}
+.tf-hover-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--tf-card-shadow-hover);
+  background: var(--tf-card-bg-hover);
+}
+.tf-hover-card:hover::after {
+  opacity: 0.5;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Range slider (glass settings)
+   ───────────────────────────────────────────────────────────── */
+.tf-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.tf-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+.tf-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.tf-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Animated underline-grow for shimmering accents */
+@keyframes tfFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.tf-float {
+  animation: tfFloat 5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Cursor affordance — everything clickable shows the hand
+   ───────────────────────────────────────────────────────────── */
+button,
+a,
+[role='button'],
+summary,
+label[for],
+select,
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  cursor: pointer;
+}
+button:disabled,
+button[disabled],
+.tf-disabled {
+  cursor: not-allowed;
+}
+
+/* Bare pill/dock/nav button hover */
+.tf-press {
+  transition:
+    background-color 0.18s ease,
+    transform 0.15s ease,
+    color 0.18s ease;
+}
+.tf-press:hover {
+  background: var(--tf-soft) !important;
+}
+.tf-press:active {
+  transform: scale(0.95);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Cursor spotlight + 3D tilt for premium cards
+   ───────────────────────────────────────────────────────────── */
+.tf-spotlight {
+  position: relative;
+}
+.tf-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.22),
+    transparent 42%
+  );
+  z-index: 2;
+}
+.tf-spotlight:hover::before {
+  opacity: 1;
+}
+
+.tf-tilt {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
+    box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.tf-tilt:hover {
+  box-shadow: var(--tf-card-shadow-hover);
+}
+
+/* Animated conic glow ring (premium CTA / accents) */
+@keyframes tfSpin {
+  to { transform: rotate(1turn); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Respect reduced-motion
+   ───────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tf-blob,
+  .tf-stars,
+  .tf-aurora,
+  .tf-float,
+  .tf-presence {
+    animation: none !important;
+  }
+  .tf-hover-card,
+  .tf-pill,
+  .tf-panel,
+  .tf-card-glass,
+  body {
+    transition: none !important;
+  }
+  .tf-tilt {
+    transform: none !important;
+  }
+  .tf-btn-anim::before {
+    display: none;
+  }
+}
+
+/* DatePicker theming (glass) */
+.taskflow-datepicker {
+  width: 100%;
+  display: block;
+}
+.taskflow-datepicker .react-datepicker-wrapper,
+.taskflow-datepicker .react-datepicker__input-container {
+  display: block;
+  width: 100%;
+}
+.taskflow-datepicker .react-datepicker {
+  background: var(--tf-modal-bg);
+  border: 1px solid var(--tf-card-border);
+  border-radius: 16px;
+  font-family: inherit;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+}
+.taskflow-datepicker .react-datepicker__header {
+  background: transparent;
+  border-bottom: 1px solid var(--tf-hairline);
+  padding: 12px 0 8px;
+}
+.taskflow-datepicker .react-datepicker__current-month {
+  color: var(--tf-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.taskflow-datepicker .react-datepicker__day-name {
+  color: var(--tf-text-faint);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 32px;
+  line-height: 32px;
+}
+.taskflow-datepicker .react-datepicker__day {
+  color: var(--tf-text-muted);
+  width: 32px;
+  line-height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 1px;
+  transition: all 0.15s;
+}
+.taskflow-datepicker .react-datepicker__day:hover {
+  background: var(--tf-soft-hover);
+  color: var(--tf-text);
+}
+.taskflow-datepicker .react-datepicker__day--selected {
+  background: #6366f1 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.taskflow-datepicker .react-datepicker__day--today {
+  color: #6366f1;
+  font-weight: 600;
+}
+.taskflow-datepicker .react-datepicker__day--outside-month {
+  opacity: 0.4;
+}
+.taskflow-datepicker .react-datepicker__navigation-icon::before {
+  border-color: var(--tf-text-muted);
+}
+.taskflow-datepicker .react-datepicker__triangle {
+  display: none;
+}
+.taskflow-datepicker .react-datepicker__month-select,
+.taskflow-datepicker .react-datepicker__year-select {
+  background: var(--tf-soft);
+  color: var(--tf-text);
+  border: 1px solid var(--tf-hairline);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.taskflow-datepicker .react-datepicker__month-dropdown-container,
+.taskflow-datepicker .react-datepicker__year-dropdown-container {
+  margin: 0 4px;
+}
+.taskflow-datepicker .react-datepicker-popper {
+  z-index: 9999;
 }

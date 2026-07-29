@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { IconButton, Icon } from '@/components/tf/atoms';
 
 type ModalProps = {
   open: boolean;
@@ -18,7 +19,6 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  // Lock body scroll when modal is open
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -34,26 +34,30 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
+      className="tf-overlay tf-blur fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'var(--tf-overlay-bg)' }}
       onClick={onClose}
     >
       <div
-        className="bg-[#16161f] border border-[#2a2a3a] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
+        className="tf-modal tf-blur w-full sm:max-w-lg max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--tf-modal-bg)',
+          border: '1px solid var(--tf-card-border)',
+          borderRadius: 'calc(28px * var(--tf-radius-scale, 1))',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4)',
+          color: 'var(--tf-text)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header — always visible */}
-        <div className="flex items-center justify-between p-4 sm:p-6 pb-0 sm:pb-0 shrink-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-[#f0f0ff] pr-4">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-[#55556a] hover:text-[#f0f0ff] transition-colors text-2xl leading-none p-1 -mr-1"
-          >
-            ×
-          </button>
+        <div className="flex items-center justify-between p-5 sm:p-6 pb-0 shrink-0">
+          <h2 className="text-lg sm:text-xl font-bold pr-4" style={{ letterSpacing: '-0.02em' }}>
+            {title}
+          </h2>
+          <IconButton size={32} onClick={onClose} title="Fermer">
+            <Icon.Close />
+          </IconButton>
         </div>
-        {/* Content — scrollable */}
-        <div className="p-4 sm:p-6 pt-4 overflow-y-auto flex-1">{children}</div>
+        <div className="p-5 sm:p-6 pt-4 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );
