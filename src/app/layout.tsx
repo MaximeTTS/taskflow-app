@@ -1,31 +1,34 @@
 import type { Metadata } from 'next';
-import { Inter, Sora, Plus_Jakarta_Sans, Geist_Mono } from 'next/font/google';
+import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import { ApolloClientProvider } from '@/components/providers/apollo-provider';
-import { TfThemeProvider } from '@/components/tf/theme';
-import { GlassSettings } from '@/components/tf/GlassSettings';
+import { GlassFilters } from '@/components/glass/GlassFilters';
+import { Ground } from '@/components/glass/Ground';
 import './globals.css';
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: '--font-jakarta',
+/**
+ * Bricolage Grotesque en affichage : variable, avec un axe optique qui lui
+ * permet de rester dense en gros titres sans devenir illisible.
+ */
+const bricolage = Bricolage_Grotesque({
+  variable: '--font-bricolage',
+  subsets: ['latin'],
+  display: 'swap',
+  axes: ['opsz'],
+});
+
+/** Instrument Sans en texte courant : grande hauteur d'x, donc lisible
+    malgré la baisse de contraste que provoque le verre. */
+const instrument = Instrument_Sans({
+  variable: '--font-instrument',
   subsets: ['latin'],
   display: 'swap',
 });
 
-const inter = Inter({
-  variable: '--font-inter',
+/** Mono pour les chiffres, les dates et les étiquettes techniques. */
+const mono = JetBrains_Mono({
+  variable: '--font-tf-mono',
   subsets: ['latin'],
   display: 'swap',
-});
-
-const sora = Sora({
-  variable: '--font-sora',
-  subsets: ['latin'],
-  display: 'swap',
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
@@ -33,17 +36,23 @@ export const metadata: Metadata = {
   description: 'Gestionnaire de projets collaboratif',
 };
 
+export const viewport = {
+  themeColor: '#04070e',
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
-      <body
-        className={`${jakarta.variable} ${inter.variable} ${sora.variable} ${geistMono.variable} antialiased`}
-      >
+    // Les variables de police vont sur <html>, pas sur <body> : le bloc
+    // @theme de Tailwind résout `--font-display` au niveau de :root, où une
+    // variable déclarée sur body n'est pas visible.
+    <html lang="fr" className={`${bricolage.variable} ${instrument.variable} ${mono.variable}`}>
+      <body>
+        {/* Les filtres de réfraction sont référencés par le CSS : un seul
+            exemplaire dans le document suffit. */}
+        <GlassFilters />
+        <Ground />
         <ApolloClientProvider>
-          <TfThemeProvider>
-            {children}
-            <GlassSettings />
-          </TfThemeProvider>
+          <div className="relative z-[1]">{children}</div>
         </ApolloClientProvider>
       </body>
     </html>

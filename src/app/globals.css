@@ -1,649 +1,738 @@
 @import 'tailwindcss';
 
-/* ─────────────────────────────────────────────────────────────
-   TaskFlow v2 — Liquid Glass design tokens
-   Two variants flip on <html data-tf-variant="...">:
-     verdant — light (default)
-     astral  — dark
-   Components reference these CSS vars directly (in Tailwind arbitrary
-   values or inline styles), so a single attribute swap reskins the app.
-   ───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   TASKFLOW — Abysse dichroïque
+   ═══════════════════════════════════════════════════════════════════════
+
+   Le verre a besoin d'un fond profond pour exister : sans contraste
+   derrière lui, la réfraction ne se voit pas. Tout le système part de là.
+
+   Les accents sont dérivés d'une propriété réelle du verre : l'arête d'un
+   verre épais tire vers le cyan (le fer dans la silice), et la dispersion
+   chromatique fait apparaître du magenta à l'opposé. Ces deux teintes ne
+   sont donc pas décoratives — elles décrivent la matière.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── Le sol ──────────────────────────────────────────────────────── */
+  --color-void: #04070e;
+  --color-deep: #080d18;
+  --color-tide: #101828;
+  --color-shelf: #16203a;
+
+  /* ── Les accents dichroïques ─────────────────────────────────────── */
+  --color-aqua: #4fe0d5;
+  --color-rose: #ff6b9d;
+  --color-amber: #ffb454;
+  --color-azure: #5ea8ff;
+
+  /* ── Le texte ────────────────────────────────────────────────────── */
+  --color-frost: #eaf0fa;
+  --color-haze: #93a2bf;
+  --color-mute: #5a6884;
+
+  /* ── Typographie ─────────────────────────────────────────────────── */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-tf-mono), ui-monospace, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Variables de matière
+   ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Live-tweakable glass knobs */
-  --tf-blur: 36px;
-  --tf-sat: 160%;
-  --tf-radius-scale: 1;
+  color-scheme: dark;
 
-  /* ── Verdant (light) — clean white, neutral ── */
-  --tf-app-bg: #f3f4f6;
-  --tf-text: #0a0b0d;
-  --tf-text-muted: rgba(0, 0, 0, 0.58);
-  --tf-text-faint: rgba(0, 0, 0, 0.4);
-  --tf-hairline: rgba(0, 0, 0, 0.08);
+  /* Épaisseur du verre. Au-delà de 20px de flou, le texte derrière devient
+     une bouillie grise et l'effet de matière se perd. */
+  --glass-blur: 14px;
+  --glass-blur-panel: 20px;
+  --glass-sat: 145%;
 
-  --tf-panel-bg: rgba(255, 255, 255, 0.6);
-  --tf-panel-border: rgba(0, 0, 0, 0.07);
-  --tf-panel-shadow:
-    0 18px 44px -22px rgba(15, 23, 42, 0.18),
-    0 1px 2px rgba(15, 23, 42, 0.04);
+  /* Le verre teinte, il ne peint pas : ces valeurs restent très basses. */
+  --glass-tint: rgba(150, 180, 225, 0.055);
+  --glass-tint-raised: rgba(160, 190, 235, 0.085);
 
-  --tf-card-bg: rgba(255, 255, 255, 0.5);
-  --tf-card-bg-hover: rgba(255, 255, 255, 0.74);
-  --tf-card-border: rgba(0, 0, 0, 0.07);
-  --tf-card-shadow:
-    0 10px 26px -16px rgba(15, 23, 42, 0.16),
-    0 1px 2px rgba(15, 23, 42, 0.04);
-  --tf-card-shadow-hover: 0 22px 44px -18px rgba(15, 23, 42, 0.24);
+  /* Les deux couleurs de la dispersion. */
+  --disp-cool: rgba(79, 224, 213, 0.5);
+  --disp-warm: rgba(255, 107, 157, 0.34);
 
-  --tf-pill-bg: rgba(255, 255, 255, 0.62);
-  --tf-pill-border: rgba(0, 0, 0, 0.06);
+  --rim: rgba(255, 255, 255, 0.11);
+  --rim-strong: rgba(255, 255, 255, 0.2);
 
-  --tf-input-bg: rgba(255, 255, 255, 0.72);
-  --tf-input-border: rgba(0, 0, 0, 0.1);
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 30px;
 
-  --tf-modal-bg: rgba(255, 255, 255, 0.86);
-  --tf-overlay-bg: rgba(15, 23, 42, 0.3);
-
-  --tf-soft: rgba(0, 0, 0, 0.05);
-  --tf-soft-hover: rgba(0, 0, 0, 0.09);
-
-  --tf-accent: #3b82f6;
-  --tf-accent-solid: #3b82f6;
-  --tf-accent-text: #ffffff;
-  --tf-brand: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-
-  /* Mesh background base + blob colors (light) — clean neutral white */
-  --tf-bg-base: radial-gradient(125% 125% at 50% -10%, #ffffff 0%, #f4f5f7 58%, #edeef1 100%);
-  --tf-blob-1: rgba(99, 102, 241, 0.12);
-  --tf-blob-2: rgba(59, 130, 246, 0.1);
-  --tf-blob-3: rgba(148, 163, 184, 0.12);
-  --tf-blob-4: rgba(139, 92, 246, 0.09);
-  --tf-stars-opacity: 0;
-  --tf-video-scrim: linear-gradient(180deg, rgba(244, 246, 251, 0.46) 0%, rgba(244, 246, 251, 0.52) 50%, rgba(244, 246, 251, 0.62) 100%);
+  /* Une seule courbe pour toute l'interface : les mouvements se
+     ressemblent, donc l'ensemble paraît d'une seule main. */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-tf-variant='astral'] {
-  --tf-app-bg: #060607;
-  --tf-text: #ffffff;
-  --tf-text-muted: rgba(255, 255, 255, 0.6);
-  --tf-text-faint: rgba(255, 255, 255, 0.42);
-  --tf-hairline: rgba(255, 255, 255, 0.1);
-
-  --tf-panel-bg: rgba(28, 28, 32, 0.55);
-  --tf-panel-border: rgba(255, 255, 255, 0.1);
-  --tf-panel-shadow: 0 24px 56px -24px rgba(0, 0, 0, 0.7);
-
-  --tf-card-bg: rgba(34, 34, 38, 0.45);
-  --tf-card-bg-hover: rgba(48, 48, 54, 0.6);
-  --tf-card-border: rgba(255, 255, 255, 0.09);
-  --tf-card-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.6);
-  --tf-card-shadow-hover: 0 28px 54px -20px rgba(0, 0, 0, 0.7);
-
-  --tf-pill-bg: rgba(24, 24, 28, 0.6);
-  --tf-pill-border: rgba(255, 255, 255, 0.1);
-
-  --tf-input-bg: rgba(255, 255, 255, 0.06);
-  --tf-input-border: rgba(255, 255, 255, 0.12);
-
-  --tf-modal-bg: rgba(20, 20, 23, 0.85);
-  --tf-overlay-bg: rgba(0, 0, 0, 0.6);
-
-  --tf-soft: rgba(255, 255, 255, 0.07);
-  --tf-soft-hover: rgba(255, 255, 255, 0.13);
-
-  --tf-accent: #3b82f6;
-  --tf-accent-solid: #3b82f6;
-  --tf-accent-text: #ffffff;
-
-  /* Mesh background base + blob colors (dark) — near-black, restrained */
-  --tf-bg-base: radial-gradient(125% 125% at 50% -10%, #16161a 0%, #0b0b0e 55%, #000000 100%);
-  --tf-blob-1: rgba(99, 102, 241, 0.16);
-  --tf-blob-2: rgba(59, 130, 246, 0.12);
-  --tf-blob-3: rgba(120, 120, 140, 0.12);
-  --tf-blob-4: rgba(139, 92, 246, 0.12);
-  --tf-stars-opacity: 0.5;
-  --tf-video-scrim: linear-gradient(180deg, rgba(5, 6, 15, 0.48) 0%, rgba(5, 6, 15, 0.55) 50%, rgba(5, 6, 15, 0.64) 100%);
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   Base
+   ═══════════════════════════════════════════════════════════════════════ */
 
 html {
-  background: var(--tf-app-bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--tf-app-bg);
-  color: var(--tf-text);
-  font-family:
-    var(--font-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  letter-spacing: -0.011em;
+  background: var(--color-void);
+  color: var(--color-frost);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-/* Font picker — explicit per-choice rules (resolve reliably on <body>) */
-html[data-tf-font='jakarta'] body {
-  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
-html[data-tf-font='inter'] body {
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
-html[data-tf-font='sora'] body {
-  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
-html[data-tf-font='mono'] body {
-  font-family: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
-}
-
-/* Smooth theme cross-fade for colors/shadows across the app */
-.tf-pill,
-.tf-panel,
-.tf-card-glass,
-.tf-bg,
-body {
-  transition:
-    background-color 0.5s ease,
-    background 0.5s ease,
-    border-color 0.5s ease,
-    box-shadow 0.5s ease,
-    color 0.5s ease;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis-weight: none;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: #6366f130;
-  color: var(--tf-text);
+  background: rgba(79, 224, 213, 0.26);
+  color: var(--color-frost);
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(120, 120, 140, 0.4);
+/* Le focus doit rester lisible sur du verre : un outline système seul y
+   disparaît, on le double d'un décalage. */
+:focus-visible {
+  outline: 2px solid var(--color-aqua);
+  outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* ── Reusable glass utilities ── */
-.tf-blur {
-  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
-  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+/* ═══════════════════════════════════════════════════════════════════════
+   Typographie
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  /* Bricolage porte un axe optique : on l'ouvre aux grandes tailles pour
+     que les contreformes respirent. */
+  font-variation-settings: 'opsz' 40;
 }
 
-.tf-panel {
-  background-color: var(--tf-panel-bg);
-  border: 1px solid var(--tf-panel-border);
-  box-shadow: var(--tf-panel-shadow);
-  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
-  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+.tf-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-mute);
 }
+
+.tf-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LE VERRE — pile de quatre couches
+   ═══════════════════════════════════════════════════════════════════════
+
+   1. .g-refract  réfraction : flou de l'arrière-plan + distorsion SVG
+   2. .g-tint     teinte du matériau
+   3. .g-rim      arête : dispersion dichroïque
+   4. .g-body     le contenu, au-dessus de tout
+
+   La séparation est nécessaire : `filter` et `backdrop-filter` sur un même
+   élément se composent mal, et une arête interne ne peut pas être floutée
+   avec l'arrière-plan sans devenir laiteuse.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.g {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--r-lg);
+}
+
+.g-refract,
+.g-tint,
+.g-rim,
+.g-spec {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.g-refract {
+  z-index: 1;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+
+.g-tint {
+  z-index: 2;
+  background: var(--glass-tint);
+}
+
+.g-raised .g-tint {
+  background: var(--glass-tint-raised);
+}
+
+.g-panel .g-refract {
+  backdrop-filter: blur(var(--glass-blur-panel)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur-panel)) saturate(var(--glass-sat));
+}
+
+/* ── L'arête : la signature ──────────────────────────────────────────
+   Quatre ombres internes empilées. Les deux premières sont la dispersion
+   chromatique : cyan en haut à gauche, rose en bas à droite, comme la
+   lumière se sépare en traversant le bord d'un verre épais. */
+.g-rim {
+  z-index: 3;
+  box-shadow:
+    inset 1px 1px 0 0 var(--disp-cool),
+    inset -1px -1px 0 0 var(--disp-warm),
+    inset 0 0 0 1px var(--rim),
+    inset 0 1px 18px -8px rgba(255, 255, 255, 0.5);
+}
+
+.g-body {
+  position: relative;
+  z-index: 4;
+}
+
+/* Deux couches d'ombre : une proche et dense, une lointaine et diffuse.
+   Une seule ombre donne toujours un rendu plat. */
+.g-lift {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 12px 32px -12px rgba(0, 0, 0, 0.75);
+}
+
+.g-lift-lg {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.55),
+    0 28px 70px -24px rgba(0, 0, 0, 0.85);
+}
+
+/* ── Spéculaire suivant le curseur ───────────────────────────────────
+   Coordonnées posées en JS sur --mx / --my, opacité sur --spec. */
+.g-spec {
+  z-index: 3;
+  opacity: var(--spec, 0);
+  transition: opacity 0.4s var(--ease);
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(79, 224, 213, 0.09) 32%,
+    transparent 68%
+  );
+}
+
+/* ── Distorsion SVG ──────────────────────────────────────────────────
+   Chromium uniquement, et volontairement.
+
+   Combiner `filter: url(#…)` et `backdrop-filter` n'est correctement rendu
+   que sur Chromium. Sur Firefox le filtre s'applique sans le flou de fond ;
+   sur Safari le résultat scintille. Plutôt que de servir un rendu cassé à
+   la moitié des visiteurs, la distorsion n'est activée que là où elle est
+   fiable — ailleurs le verre reste net et tout le reste du système (arête
+   dichroïque, spéculaire, teinte) fonctionne à l'identique. */
+/* On teste la variante préfixée `-webkit-`, que Firefox n'implémente pas :
+   c'est précisément le navigateur où la combinaison casse. Le test porte
+   donc sur la bonne chose, sans recourir à `@-moz-document`, non standard
+   et refusé par le moteur CSS. */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .g-distort .g-refract {
+    filter: url(#tf-refract);
+  }
+
+  .g-distort-fine .g-refract {
+    filter: url(#tf-refract-fine);
+  }
+}
+
+/* Repli complet : sans `backdrop-filter`, le verre serait un trou
+   transparent illisible. On le remplace par une surface opaque. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .g-refract {
+    background: rgba(16, 24, 40, 0.92);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Boutons
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-btn {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  font-family: var(--font-body);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--color-frost);
+  transition:
+    transform 0.22s var(--ease),
+    box-shadow 0.22s var(--ease),
+    opacity 0.22s var(--ease);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 6px 18px -8px rgba(0, 0, 0, 0.6);
+}
+
+.tf-btn .g-refract {
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+}
+
+.tf-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 10px 26px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* Enfoncement mécanique : pas de rebond, la course est courte et sèche. */
+.tf-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 2px 6px -3px rgba(0, 0, 0, 0.6);
+  transition-duration: 0.06s;
+}
+
+.tf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tf-btn-label {
+  position: relative;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── L'arête balayante ───────────────────────────────────────────────
+   Un trait de lumière traverse le bouton une fois au survol. C'est la
+   lumière qui court le long d'une arête de verre quand on la tourne. */
+.tf-btn-sweep {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tf-btn-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.42) 48%,
+    rgba(79, 224, 213, 0.3) 58%,
+    transparent 100%
+  );
+  transform: skewX(-18deg);
+  opacity: 0;
+}
+
+.tf-btn:hover:not(:disabled) .tf-btn-sweep::after {
+  animation: tf-sweep 0.85s var(--ease-out);
+}
+
+@keyframes tf-sweep {
+  0% {
+    left: -60%;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    left: 115%;
+    opacity: 0;
+  }
+}
+
+/* ── Variantes ───────────────────────────────────────────────────────
+   L'action principale n'est pas un aplat de couleur : c'est du verre
+   éclairé par-derrière en cyan. La couleur vient de la lumière, pas de la
+   peinture — cohérent avec le reste du système. */
+.tf-btn-primary .g-tint {
+  background:
+    linear-gradient(168deg, rgba(79, 224, 213, 0.9) 0%, rgba(56, 189, 200, 0.82) 100%);
+}
+
+.tf-btn-primary {
+  color: #04121a;
+  font-weight: 650;
+}
+
+.tf-btn-primary .g-rim {
+  box-shadow:
+    inset 1px 1px 0 0 rgba(255, 255, 255, 0.65),
+    inset -1px -1px 0 0 rgba(0, 60, 70, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.tf-btn-primary:hover:not(:disabled) {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 10px 30px -8px rgba(79, 224, 213, 0.45);
+}
+
+.tf-btn-glass .g-tint {
+  background: rgba(160, 190, 235, 0.09);
+}
+
+.tf-btn-ghost {
+  box-shadow: none;
+}
+.tf-btn-ghost .g-tint,
+.tf-btn-ghost .g-refract {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tf-btn-ghost .g-rim {
+  box-shadow: none;
+}
+.tf-btn-ghost {
+  color: var(--color-haze);
+}
+.tf-btn-ghost:hover:not(:disabled) {
+  color: var(--color-frost);
+  box-shadow: none;
+}
+.tf-btn-ghost:hover:not(:disabled) .g-tint {
+  background: rgba(160, 190, 235, 0.08);
+}
+
+.tf-btn-danger .g-tint {
+  background: linear-gradient(168deg, rgba(255, 107, 157, 0.85) 0%, rgba(226, 74, 124, 0.8) 100%);
+}
+.tf-btn-danger {
+  color: #1a0410;
+  font-weight: 650;
+}
+.tf-btn-danger:hover:not(:disabled) {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 10px 30px -8px rgba(255, 107, 157, 0.45);
+}
+
+.tf-icon-btn {
+  padding: 0;
+  color: var(--color-haze);
+}
+.tf-icon-btn:hover:not(:disabled) {
+  color: var(--color-frost);
+}
+
+.tf-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: tf-spin 0.7s linear infinite;
+}
+
+@keyframes tf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Champs de saisie
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-field {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--r-md);
+  transition: box-shadow 0.25s var(--ease);
+}
+
+.tf-input {
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  height: 46px;
+  padding-inline: 15px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--color-frost);
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  letter-spacing: -0.005em;
+}
+
+.tf-input::placeholder {
+  color: var(--color-mute);
+}
+
+.tf-field .g-refract {
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+.tf-field .g-tint {
+  background: rgba(10, 16, 32, 0.5);
+}
+
+/* Au focus, l'arête froide s'intensifie : la lumière se concentre sur le
+   champ actif. Signal net sans halo bleu système. */
+.tf-field:focus-within {
+  box-shadow: 0 0 0 3px rgba(79, 224, 213, 0.16);
+}
+
+.tf-field:focus-within .g-rim {
+  box-shadow:
+    inset 1px 1px 0 0 rgba(79, 224, 213, 0.9),
+    inset -1px -1px 0 0 var(--disp-warm),
+    inset 0 0 0 1px rgba(79, 224, 213, 0.35);
+}
+
+.tf-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-haze);
+  letter-spacing: -0.005em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Pastilles de statut
+   ═══════════════════════════════════════════════════════════════════════ */
 
 .tf-pill {
-  background-color: var(--tf-pill-bg);
-  border: 1px solid var(--tf-pill-border);
-  box-shadow: var(--tf-panel-shadow);
-  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
-  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  background: color-mix(in oklab, currentColor 13%, transparent);
 }
 
-.tf-card-glass {
-  background-color: var(--tf-card-bg);
-  border: 1px solid var(--tf-card-border);
-  box-shadow: var(--tf-card-shadow);
-  backdrop-filter: blur(var(--tf-card-blur, var(--tf-blur))) saturate(var(--tf-sat));
-  -webkit-backdrop-filter: blur(var(--tf-card-blur, var(--tf-blur))) saturate(var(--tf-sat));
+.tf-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
-@keyframes tfPulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgba(74, 222, 128, 0);
-  }
-}
-.tf-presence {
-  animation: tfPulse 2.4s ease-out infinite;
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   Le fond
+   ═══════════════════════════════════════════════════════════════════════
 
-@keyframes tfModalIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.tf-modal {
-  animation: tfModalIn 0.28s cubic-bezier(0.2, 0.7, 0.3, 1) both;
-}
-@keyframes tfOverlayIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.tf-overlay {
-  animation: tfOverlayIn 0.22s ease both;
-}
+   Trois nappes de lumière très lentes. Elles ne sont pas décoratives :
+   sans variation derrière le verre, la réfraction n'a rien à réfracter et
+   les panneaux ne sont plus que des rectangles gris.
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* ─────────────────────────────────────────────────────────────
-   Animated mesh-gradient background
-   ───────────────────────────────────────────────────────────── */
-.tf-bg {
+.tf-ground {
   position: fixed;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: var(--tf-bg-base);
+  background:
+    radial-gradient(120% 80% at 50% -10%, #0d1830 0%, transparent 60%),
+    var(--color-void);
 }
 
-/* Video background */
-.tf-bg-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-.tf-bg-scrim {
-  position: absolute;
-  inset: 0;
-  background: var(--tf-video-scrim);
-}
-
-.tf-blob {
+.tf-glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.7;
+  filter: blur(90px);
   will-change: transform;
 }
-.tf-blob-1 {
-  width: 48vw;
-  height: 48vw;
+
+.tf-glow-1 {
+  width: 46vw;
+  height: 46vw;
+  top: -12vw;
   left: -8vw;
-  top: -8vw;
-  background: radial-gradient(circle at 50% 50%, var(--tf-blob-1), transparent 70%);
-  animation: tfDrift1 18s ease-in-out infinite;
-}
-.tf-blob-2 {
-  width: 44vw;
-  height: 44vw;
-  right: -8vw;
-  top: -6vw;
-  background: radial-gradient(circle at 50% 50%, var(--tf-blob-2), transparent 70%);
-  animation: tfDrift2 22s ease-in-out infinite;
-}
-.tf-blob-3 {
-  width: 52vw;
-  height: 52vw;
-  left: 4vw;
-  bottom: -24vw;
-  background: radial-gradient(circle at 50% 50%, var(--tf-blob-3), transparent 70%);
-  animation: tfDrift3 20s ease-in-out infinite;
-}
-.tf-blob-4 {
-  width: 42vw;
-  height: 42vw;
-  right: 0vw;
-  bottom: -20vw;
-  background: radial-gradient(circle at 50% 50%, var(--tf-blob-4), transparent 70%);
-  animation: tfDrift4 25s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(79, 224, 213, 0.2) 0%, transparent 68%);
+  animation: drift-a 34s var(--ease) infinite alternate;
 }
 
-@keyframes tfDrift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(14vw, 10vh) scale(1.15); }
-  66% { transform: translate(6vw, 18vh) scale(0.95); }
-}
-@keyframes tfDrift2 {
-  0%, 100% { transform: translate(0, 0) scale(1.05); }
-  33% { transform: translate(-13vw, 12vh) scale(0.92); }
-  66% { transform: translate(-4vw, 4vh) scale(1.12); }
-}
-@keyframes tfDrift3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(12vw, -12vh) scale(1.12); }
-  66% { transform: translate(2vw, -4vh) scale(0.94); }
-}
-@keyframes tfDrift4 {
-  0%, 100% { transform: translate(0, 0) scale(0.98); }
-  33% { transform: translate(-12vw, -8vh) scale(1.1); }
-  66% { transform: translate(-3vw, -16vh) scale(0.95); }
+.tf-glow-2 {
+  width: 40vw;
+  height: 40vw;
+  bottom: -14vw;
+  right: -6vw;
+  background: radial-gradient(circle, rgba(255, 107, 157, 0.16) 0%, transparent 68%);
+  animation: drift-b 42s var(--ease) infinite alternate;
 }
 
-/* Slow rotating aurora wash — adds life on both themes */
-.tf-aurora {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 160vmax;
-  height: 160vmax;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(
-    from 0deg,
-    var(--tf-blob-1),
-    transparent 25%,
-    var(--tf-blob-3),
-    transparent 50%,
-    var(--tf-blob-2),
-    transparent 75%,
-    var(--tf-blob-4),
-    transparent 100%
-  );
-  filter: blur(110px);
-  opacity: 0.16;
-  animation: tfAuroraSpin 70s linear infinite;
-  will-change: transform;
-}
-@keyframes tfAuroraSpin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+.tf-glow-3 {
+  width: 34vw;
+  height: 34vw;
+  top: 34%;
+  left: 46%;
+  background: radial-gradient(circle, rgba(94, 168, 255, 0.13) 0%, transparent 70%);
+  animation: drift-c 50s var(--ease) infinite alternate;
 }
 
-/* Fine star field for the dark theme (fades out in light) */
-.tf-stars {
-  position: absolute;
-  inset: 0;
-  opacity: var(--tf-stars-opacity);
-  transition: opacity 0.6s ease;
-  background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.9), transparent),
-    radial-gradient(1px 1px at 70% 20%, rgba(255, 255, 255, 0.7), transparent),
-    radial-gradient(1.5px 1.5px at 40% 60%, rgba(255, 255, 255, 0.85), transparent),
-    radial-gradient(1px 1px at 85% 50%, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(1px 1px at 55% 80%, rgba(255, 255, 255, 0.7), transparent),
-    radial-gradient(1.5px 1.5px at 10% 75%, rgba(255, 255, 255, 0.8), transparent),
-    radial-gradient(1px 1px at 90% 85%, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(1px 1px at 30% 12%, rgba(255, 255, 255, 0.7), transparent);
-  background-repeat: repeat;
-  background-size: 420px 420px;
-  animation: tfTwinkle 6s ease-in-out infinite;
-}
-@keyframes tfTwinkle {
-  0%, 100% { opacity: calc(var(--tf-stars-opacity) * 0.55); }
-  50% { opacity: var(--tf-stars-opacity); }
-}
-
-/* Subtle film grain for premium texture */
+/* Grain : casse le banding des dégradés très sombres, qui s'escalierent
+   visiblement sur un écran 8 bits. */
 .tf-grain {
   position: absolute;
-  inset: 0;
-  opacity: 0.04;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Hover-lift card with specular highlight
-   ───────────────────────────────────────────────────────────── */
-.tf-hover-card {
-  position: relative;
-  transition:
-    transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
-    box-shadow 0.3s ease,
-    background-color 0.3s ease;
-  will-change: transform;
-}
-.tf-hover-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  inset: -50%;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 36%);
-}
-.tf-hover-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--tf-card-shadow-hover);
-  background: var(--tf-card-bg-hover);
-}
-.tf-hover-card:hover::after {
-  opacity: 0.5;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Range slider (glass settings)
-   ───────────────────────────────────────────────────────────── */
-.tf-range {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  outline: none;
-  cursor: pointer;
+@keyframes drift-a {
+  to {
+    transform: translate3d(14vw, 8vh, 0) scale(1.18);
+  }
 }
-.tf-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  transition: transform 0.15s ease;
+@keyframes drift-b {
+  to {
+    transform: translate3d(-12vw, -10vh, 0) scale(1.12);
+  }
 }
-.tf-range::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-}
-.tf-range::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+@keyframes drift-c {
+  to {
+    transform: translate3d(-9vw, 11vh, 0) scale(0.88);
+  }
 }
 
-/* Animated underline-grow for shimmering accents */
-@keyframes tfFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-.tf-float {
-  animation: tfFloat 5s ease-in-out infinite;
+/* ═══════════════════════════════════════════════════════════════════════
+   Mouvement
+   ═══════════════════════════════════════════════════════════════════════
+
+   La signature : les éléments arrivent flous et se précisent, comme du
+   verre qui se met au point. Le mouvement décrit la matière au lieu de
+   simplement déplacer des boîtes.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes tf-focus-in {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translate3d(0, 18px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Cursor affordance — everything clickable shows the hand
-   ───────────────────────────────────────────────────────────── */
-button,
-a,
-[role='button'],
-summary,
-label[for],
-select,
-input[type='checkbox'],
-input[type='radio'],
-input[type='range'] {
-  cursor: pointer;
-}
-button:disabled,
-button[disabled],
-.tf-disabled {
-  cursor: not-allowed;
+.tf-in {
+  animation: tf-focus-in 0.85s var(--ease-out) both;
 }
 
-/* Bare pill/dock/nav button hover */
-.tf-press {
-  transition:
-    background-color 0.18s ease,
-    transform 0.15s ease,
-    color 0.18s ease;
+/* Cascade : chaque enfant part un cran plus tard. Assez lent pour se voir,
+   assez court pour ne pas faire attendre. */
+.tf-cascade > * {
+  animation: tf-focus-in 0.75s var(--ease-out) both;
 }
-.tf-press:hover {
-  background: var(--tf-soft) !important;
-}
-.tf-press:active {
-  transform: scale(0.95);
+.tf-cascade > *:nth-child(1) { animation-delay: 0.04s; }
+.tf-cascade > *:nth-child(2) { animation-delay: 0.11s; }
+.tf-cascade > *:nth-child(3) { animation-delay: 0.18s; }
+.tf-cascade > *:nth-child(4) { animation-delay: 0.25s; }
+.tf-cascade > *:nth-child(5) { animation-delay: 0.32s; }
+.tf-cascade > *:nth-child(6) { animation-delay: 0.39s; }
+.tf-cascade > *:nth-child(7) { animation-delay: 0.46s; }
+.tf-cascade > *:nth-child(8) { animation-delay: 0.53s; }
+
+/* Révélation de titre par masque : la ligne se dévoile sous un cache. */
+@keyframes tf-reveal {
+  from {
+    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Cursor spotlight + 3D tilt for premium cards
-   ───────────────────────────────────────────────────────────── */
-.tf-spotlight {
-  position: relative;
-}
-.tf-spotlight::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  background: radial-gradient(
-    420px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, 0.22),
-    transparent 42%
-  );
-  z-index: 2;
-}
-.tf-spotlight:hover::before {
-  opacity: 1;
+.tf-mask {
+  display: block;
+  overflow: hidden;
+  /* Compensation : sans elle, le masque coupe les jambages (g, p, y). */
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
 }
 
-.tf-tilt {
-  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-  transition:
-    transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1),
-    box-shadow 0.3s ease;
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-.tf-tilt:hover {
-  box-shadow: var(--tf-card-shadow-hover);
+.tf-mask > * {
+  display: block;
+  animation: tf-reveal 0.9s var(--ease-out) both;
 }
 
-/* Animated conic glow ring (premium CTA / accents) */
-@keyframes tfSpin {
-  to { transform: rotate(1turn); }
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   Accessibilité du mouvement
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* ─────────────────────────────────────────────────────────────
-   Respect reduced-motion
-   ───────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .tf-blob,
-  .tf-stars,
-  .tf-aurora,
-  .tf-float,
-  .tf-presence {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Les nappes de fond s'arrêtent net : c'est le mouvement ambiant le plus
+     susceptible de gêner. */
+  .tf-glow {
     animation: none !important;
   }
-  .tf-hover-card,
-  .tf-pill,
-  .tf-panel,
-  .tf-card-glass,
-  body {
-    transition: none !important;
-  }
-  .tf-tilt {
-    transform: none !important;
-  }
-  .tf-btn-anim::before {
-    display: none;
-  }
 }
 
-/* DatePicker theming (glass) */
-.taskflow-datepicker {
-  width: 100%;
-  display: block;
+/* Barres de défilement discrètes, accordées au fond. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
-.taskflow-datepicker .react-datepicker-wrapper,
-.taskflow-datepicker .react-datepicker__input-container {
-  display: block;
-  width: 100%;
-}
-.taskflow-datepicker .react-datepicker {
-  background: var(--tf-modal-bg);
-  border: 1px solid var(--tf-card-border);
-  border-radius: 16px;
-  font-family: inherit;
-  overflow: hidden;
-  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
-  -webkit-backdrop-filter: blur(var(--tf-blur)) saturate(var(--tf-sat));
-}
-.taskflow-datepicker .react-datepicker__header {
+::-webkit-scrollbar-track {
   background: transparent;
-  border-bottom: 1px solid var(--tf-hairline);
-  padding: 12px 0 8px;
 }
-.taskflow-datepicker .react-datepicker__current-month {
-  color: var(--tf-text);
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: capitalize;
+::-webkit-scrollbar-thumb {
+  background: rgba(147, 162, 191, 0.18);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
-.taskflow-datepicker .react-datepicker__day-name {
-  color: var(--tf-text-faint);
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 32px;
-  line-height: 32px;
-}
-.taskflow-datepicker .react-datepicker__day {
-  color: var(--tf-text-muted);
-  width: 32px;
-  line-height: 32px;
-  border-radius: 8px;
-  font-size: 13px;
-  margin: 1px;
-  transition: all 0.15s;
-}
-.taskflow-datepicker .react-datepicker__day:hover {
-  background: var(--tf-soft-hover);
-  color: var(--tf-text);
-}
-.taskflow-datepicker .react-datepicker__day--selected {
-  background: #6366f1 !important;
-  color: #fff !important;
-  font-weight: 600;
-}
-.taskflow-datepicker .react-datepicker__day--today {
-  color: #6366f1;
-  font-weight: 600;
-}
-.taskflow-datepicker .react-datepicker__day--outside-month {
-  opacity: 0.4;
-}
-.taskflow-datepicker .react-datepicker__navigation-icon::before {
-  border-color: var(--tf-text-muted);
-}
-.taskflow-datepicker .react-datepicker__triangle {
-  display: none;
-}
-.taskflow-datepicker .react-datepicker__month-select,
-.taskflow-datepicker .react-datepicker__year-select {
-  background: var(--tf-soft);
-  color: var(--tf-text);
-  border: 1px solid var(--tf-hairline);
-  border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 13px;
-  outline: none;
-  cursor: pointer;
-}
-.taskflow-datepicker .react-datepicker__month-dropdown-container,
-.taskflow-datepicker .react-datepicker__year-dropdown-container {
-  margin: 0 4px;
-}
-.taskflow-datepicker .react-datepicker-popper {
-  z-index: 9999;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(147, 162, 191, 0.32);
+  background-clip: content-box;
 }
