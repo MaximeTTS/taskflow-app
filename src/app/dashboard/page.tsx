@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -79,17 +80,14 @@ export default function DashboardPage() {
   const [desc, setDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // La session vit dans un cookie httpOnly : on ne peut plus la deviner
+  // depuis le client, useRequireAuth interroge le serveur.
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      router.push('/login');
-      return;
-    }
-    const { initFromStorage } = useAuthStore.getState();
-    initFromStorage();
-    setTimeout(() => {
-      void fetchProjects();
-    }, 0);
-  }, []);
+    if (authLoading || !isAuthenticated) return;
+    void fetchProjects();
+  }, [authLoading, isAuthenticated]);
 
   const fetchProjects = async () => {
     try {

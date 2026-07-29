@@ -22,8 +22,33 @@ model User {
   memberships   ProjectMember[]
   assignedTasks Task[]          @relation("TaskAssignee")
   createdTasks  Task[]          @relation("TaskCreator")
+  sessions      Session[]
 
   @@map("users")
+}
+
+/// Session de rafraichissement.
+///
+/// Un JWT seul ne peut pas etre revoque : se deconnecter ne faisait
+/// qu'effacer le jeton cote client, un exemplaire copie restait valable
+/// jusqu'a expiration. Ces sessions donnent une revocation reelle.
+///
+/// Seule l'empreinte du jeton est stockee : une fuite de la base ne permet
+/// pas de rejouer les sessions.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model Project {

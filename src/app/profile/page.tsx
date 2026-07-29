@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -53,8 +53,7 @@ const GET_ME = gql`
 type MeResult = { id: string; name: string; email: string; avatar?: string };
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const { user, login } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -73,13 +72,12 @@ export default function ProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      router.push('/login');
-      return;
-    }
+    if (authLoading || !isAuthenticated) return;
     void fetchMe();
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   const fetchMe = async () => {
     try {
@@ -104,8 +102,7 @@ export default function ProfilePage() {
         variables: { input: { name, email } },
       });
       const updated = (data as { updateProfile: MeResult }).updateProfile;
-      const token = localStorage.getItem('token') ?? '';
-      login(token, updated);
+      setUser({ ...updated, avatar: updated.avatar ?? null });
       setProfileSuccess('Profil mis à jour !');
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : 'Une erreur est survenue');
@@ -158,8 +155,7 @@ export default function ProfilePage() {
       });
       const updated = (data as { updateAvatar: MeResult }).updateAvatar;
       setAvatar(updated.avatar ?? null);
-      const token = localStorage.getItem('token') ?? '';
-      login(token, {
+      setUser({
         id: updated.id,
         name: updated.name,
         email: updated.email,

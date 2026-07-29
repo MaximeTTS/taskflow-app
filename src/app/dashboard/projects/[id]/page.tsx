@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useAuthStore } from '@/store/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -96,20 +96,17 @@ export default function ProjectPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) setCurrentUserId((JSON.parse(userStr) as { id: string }).id);
-  }, []);
+  const { user: authUser, isAuthenticated, isLoading: authLoading } = useRequireAuth();
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      router.push('/login');
-      return;
-    }
-    const { initFromStorage } = useAuthStore.getState();
-    initFromStorage();
+    if (authUser) setCurrentUserId(authUser.id);
+  }, [authUser]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     void fetchProject();
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated, projectId]);
 
   const projectTasksKey = project?.tasks.map((t) => `${t.id}:${t.status}`).join(',') ?? '';
 

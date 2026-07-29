@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
-import { hashPassword, verifyPassword, generateToken } from '@/lib/auth';
+import { hashPassword, verifyPassword } from '@/lib/auth';
 import { requireProjectRole, canAssignRole, canManageMember } from '@/lib/permissions';
 import type { Role } from '@/lib/permissions';
-import { loginLimiter, registerLimiter } from '@/lib/rate-limit';
+import { revokeAllSessions } from '@/lib/session';
 import { assertValidImageUpload } from '@/lib/upload-validation';
 import {
   assertValidEmail,
-  assertValidPassword,
   assertLength,
+  assertValidPassword,
   normalizeEmail,
   LIMITS,
 } from '@/lib/validation';
@@ -17,18 +17,6 @@ import type { Context } from '@/types/context';
 function requireUser(context: Context) {
   if (!context.user) throw new Error('Non autorisé');
   return context.user;
-}
-
-/** Applique un limiteur de débit et transforme un refus en erreur lisible. */
-function enforceRateLimit(
-  limiter: { check: (key: string) => { allowed: boolean; retryAfterMs: number } },
-  key: string,
-): void {
-  const { allowed, retryAfterMs } = limiter.check(key);
-  if (!allowed) {
-    const minutes = Math.max(1, Math.ceil(retryAfterMs / 60_000));
-    throw new Error(`Trop de tentatives. Réessayez dans ${minutes} minute(s).`);
-  }
 }
 
 export const resolvers = {
@@ -147,57 +135,9 @@ export const resolvers = {
   },
 
   Mutation: {
-    register: async (
-      _: unknown,
-      args: { input: { email: string; name?: string; password: string } },
-      context: Context,
-    ) => {
-      enforceRateLimit(registerLimiter, context.ip);
-
-      assertValidEmail(args.input.email);
-      assertValidPassword(args.input.password);
-      assertLength(args.input.name, 'nom', LIMITS.userName);
-
-      const email = normalizeEmail(args.input.email);
-
-      const existingUser = await prisma.user.findUnique({ where: { email } });
-      if (existingUser) {
-        throw new Error('Un compte existe déjà avec cet email');
-      }
-
-      const hashedPassword = await hashPassword(args.input.password);
-      const user = await prisma.user.create({
-        data: {
-          email,
-          name: args.input.name?.trim(),
-          password: hashedPassword,
-        },
-      });
-      const token = generateToken({ id: user.id, email: user.email });
-      return { token, user };
-    },
-
-    login: async (
-      _: unknown,
-      args: { input: { email: string; password: string } },
-      context: Context,
-    ) => {
-      // Limite par adresse ET par compte visé : la première borne le balayage
-      // de comptes, la seconde protège un compte précis d'une attaque répartie.
-      enforceRateLimit(loginLimiter, context.ip);
-
-      const email = normalizeEmail(args.input.email);
-      enforceRateLimit(loginLimiter, `compte:${email}`);
-
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) throw new Error('Email ou mot de passe incorrect');
-
-      const isValid = await verifyPassword(args.input.password, user.password);
-      if (!isValid) throw new Error('Email ou mot de passe incorrect');
-
-      const token = generateToken({ id: user.id, email: user.email });
-      return { token, user };
-    },
+    // `register` et `login` ont quitté GraphQL pour /api/auth/* : poser un
+    // cookie httpOnly demande une réponse HTTP que les resolvers ne
+    // contrôlent pas.
 
     updateProfile: async (
       _: unknown,
@@ -253,6 +193,10 @@ export const resolvers = {
         where: { id: currentUser.id },
         data: { password: hashedPassword },
       });
+
+      // Un changement de mot de passe doit déconnecter les autres appareils :
+      // c'est le geste attendu quand on soupçonne un accès non désiré.
+      await revokeAllSessions(currentUser.id);
 
       return true;
     },

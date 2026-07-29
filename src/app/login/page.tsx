@@ -1,31 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { gql } from 'graphql-tag';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import { apolloClient } from '@/lib/apollo-client';
+import type { User } from '@/store/auth-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { AuthShell } from '@/components/tf/AuthShell';
 
-const LOGIN_MUTATION = gql`
-  mutation Login($input: LoginInput!) {
-    login(input: $input) {
-      token
-      user {
-        id
-        email
-        name
-        avatar
-      }
-    }
-  }
-`;
-
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { setUser } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,17 +21,35 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await apolloClient.mutate({
-        mutation: LOGIN_MUTATION,
-        variables: { input: { email, password } },
+      // La connexion passe par une route REST : elle seule peut poser le
+      // cookie httpOnly qui portera la session.
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, password }),
       });
-      const result = data as {
-        login: { token: string; user: { id: string; email: string; name: string } };
-      };
-      login(result.login.token, result.login.user);
-      router.push('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+
+      const data = (await response.json()) as { user?: User; error?: string };
+
+      if (!response.ok || !data.user) {
+        setError(data.error ?? 'Une erreur est survenue');
+        return;
+      }
+
+      setUser(data.user);
+
+      // Retour sur la page demandée avant la redirection, si le middleware en
+      // a transmis une. Lu ici plutôt qu'avec `useSearchParams`, qui imposerait
+      // d'envelopper la page dans une frontière Suspense.
+      // Seuls les chemins internes sont acceptés : une valeur comme
+      // `//exemple.com` redirigerait vers un autre site.
+      const suivant = new URLSearchParams(window.location.search).get('suivant');
+      const destination =
+        suivant && suivant.startsWith('/') && !suivant.startsWith('//') ? suivant : '/dashboard';
+      router.push(destination);
+    } catch {
+      setError('Impossible de joindre le serveur');
     } finally {
       setLoading(false);
     }

@@ -1,31 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { gql } from 'graphql-tag';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import { apolloClient } from '@/lib/apollo-client';
+import type { User } from '@/store/auth-store';
+import { PASSWORD_MIN } from '@/lib/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { AuthShell } from '@/components/tf/AuthShell';
 
-const REGISTER_MUTATION = gql`
-  mutation Register($input: RegisterInput!) {
-    register(input: $input) {
-      token
-      user {
-        id
-        email
-        name
-        avatar
-      }
-    }
-  }
-`;
-
 export default function RegisterPage() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { setUser } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -37,17 +23,24 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await apolloClient.mutate({
-        mutation: REGISTER_MUTATION,
-        variables: { input: { email, password, name } },
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, password, name }),
       });
-      const result = data as {
-        register: { token: string; user: { id: string; email: string; name: string } };
-      };
-      login(result.register.token, result.register.user);
+
+      const data = (await response.json()) as { user?: User; error?: string };
+
+      if (!response.ok || !data.user) {
+        setError(data.error ?? 'Une erreur est survenue');
+        return;
+      }
+
+      setUser(data.user);
       router.push('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+    } catch {
+      setError('Impossible de joindre le serveur');
     } finally {
       setLoading(false);
     }
@@ -88,8 +81,12 @@ export default function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
+          minLength={PASSWORD_MIN}
           required
         />
+        <p className="text-[12px] -mt-1.5" style={{ color: 'var(--tf-text-faint)' }}>
+          {PASSWORD_MIN} caractères minimum.
+        </p>
         <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
           Créer mon compte <span>→</span>
         </Button>

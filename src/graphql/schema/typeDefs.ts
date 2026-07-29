@@ -50,12 +50,6 @@ export const typeDefs = gql`
     createdAt: String!
   }
 
-  # Nouveau type pour la réponse auth
-  type AuthPayload {
-    token: String!
-    user: User!
-  }
-
   enum MemberRole {
     OWNER
     ADMIN
@@ -88,11 +82,9 @@ export const typeDefs = gql`
     task(id: ID!): Task
   }
 
+  # L'authentification passe par des routes REST (/api/auth/*) et non par
+  # GraphQL : seule une route peut poser un cookie httpOnly sur la réponse.
   type Mutation {
-    # Auth
-    register(input: RegisterInput!): AuthPayload!
-    login(input: LoginInput!): AuthPayload!
-
     # Users
     updateProfile(input: UpdateProfileInput!): User!
     updateAvatar(base64Image: String!): User!
@@ -113,17 +105,6 @@ export const typeDefs = gql`
 
     uploadTaskImage(taskId: ID!, base64Image: String!): TaskImage!
     deleteTaskImage(imageId: ID!): Boolean!
-  }
-
-  input RegisterInput {
-    email: String!
-    name: String
-    password: String!
-  }
-
-  input LoginInput {
-    email: String!
-    password: String!
   }
 
   input CreateProjectInput {

@@ -3,6 +3,7 @@ import { typeDefs } from '@/graphql/schema/typeDefs';
 import { resolvers } from '@/graphql/schema/resolvers';
 import { depthLimit } from '@/graphql/depth-limit';
 import { verifyToken, extractTokenFromHeader } from '@/lib/auth';
+import { ACCESS_COOKIE } from '@/lib/cookies';
 import { isProduction } from '@/lib/env';
 import { ValidationError } from '@/lib/validation';
 import type { Context } from '@/types/context';
@@ -62,10 +63,28 @@ function clientIp(req: Request): string {
   return req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
+/** Lit une valeur dans l'en-tete Cookie brut. */
+function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.get('cookie');
+  if (!header) return null;
+
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() === name) {
+      return decodeURIComponent(part.slice(separator + 1).trim());
+    }
+  }
+  return null;
+}
+
 export async function createContext({ req }: { req: Request }): Promise<Context> {
   const ip = clientIp(req);
-  const authHeader = req.headers.get('authorization');
-  const token = extractTokenFromHeader(authHeader);
+
+  // Le cookie `httpOnly` est la source normale. L'en-tete Bearer reste accepte
+  // pour les clients non navigateur (tests, outillage) : il n'ajoute pas de
+  // risque, puisque plus aucun jeton n'est accessible au JavaScript de la page.
+  const token = readCookie(req, ACCESS_COOKIE) ?? extractTokenFromHeader(req.headers.get('authorization'));
 
   if (!token) {
     return { user: null, ip };

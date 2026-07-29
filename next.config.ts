@@ -18,7 +18,9 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https://res.cloudinary.com",
   "media-src 'self'",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.cloudinary.com",
+  // `ws:` est indispensable au rechargement a chaud de Turbopack, qui ouvre
+  // un WebSocket vers le serveur de developpement. Jamais en production.
+  `connect-src 'self' https://api.cloudinary.com${isProduction ? '' : ' ws: wss:'}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

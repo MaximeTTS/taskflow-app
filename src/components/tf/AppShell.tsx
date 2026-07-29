@@ -90,9 +90,11 @@ export function AppShell({ breadcrumb, active, children }: Props) {
           <span className="h-6 w-px mx-1" style={{ background: 'var(--tf-hairline)' }} />
           <IconButton
             title="Déconnexion"
-            onClick={() => {
-              logout();
-              router.push('/login');
+            onClick={async () => {
+              // On attend la révocation serveur avant de naviguer : sinon la
+              // session resterait valable après le retour sur /login.
+              await logout();
+              router.replace('/login');
             }}
           >
             <Icon.Logout />
