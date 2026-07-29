@@ -29,6 +29,18 @@ model User {
   /// des utilisateurs pour une regle qui n'existait pas a leur inscription.
   emailVerifiedAt DateTime?
 
+  /// Apparence choisie : "light", "dark", ou null pour suivre le systeme.
+  ///
+  /// Un champ libre plutot qu'un enum : la liste des themes s'allongera au
+  /// lot suivant (fonds personnalises), et faire migrer un enum a chaque
+  /// ajout coute une migration pour une valeur qui n'a aucun invariant a
+  /// defendre cote base. La validation vit dans src/lib/theme.ts.
+  ///
+  /// null n'est pas un defaut manquant : c'est l'etat « aucun choix
+  /// explicite », que le rendu traduit par l'absence d'attribut data-theme
+  /// et donc par prefers-color-scheme.
+  themePreference String?
+
   ownedProjects Project[]       @relation("ProjectOwner")
   memberships   ProjectMember[]
   assignedTasks Task[]          @relation("TaskAssignee")

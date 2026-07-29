@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import { ApolloClientProvider } from '@/components/providers/apollo-provider';
-import { THEME_COLOR, readThemeChoice } from '@/lib/theme';
+import { THEME_COLOR } from '@/lib/theme';
+import { readThemeChoice } from '@/lib/theme-server';
 import './globals.css';
 
 /** Inter en texte courant : grande hauteur d'x, donc lisible en petit corps. */

@@ -18,6 +18,13 @@ export const typeDefs = gql`
     """
     pendingEmail: String
 
+    """
+    Apparence choisie : "light", "dark", ou null pour suivre le système.
+    Le cookie pilote le rendu ; ce champ sert à retrouver son thème depuis
+    un autre navigateur.
+    """
+    themePreference: String
+
     ownedProjects: [Project!]!
     assignedTasks: [Task!]!
   }
@@ -248,6 +255,11 @@ export const typeDefs = gql`
   input UpdateProfileInput {
     name: String
     email: String
+    """
+    "light", "dark", ou null pour revenir au réglage système. Toute autre
+    valeur est refusée.
+    """
+    themePreference: String
   }
 
   input ChangePasswordInput {

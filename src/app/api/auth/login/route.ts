@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
     return await authSuccess(
       { id: user.id, email: user.email, name: user.name, avatar: user.avatar },
       req.headers.get('user-agent') ?? undefined,
+      undefined,
+      user.themePreference,
     );
   } catch (error) {
     return errorResponse(error);

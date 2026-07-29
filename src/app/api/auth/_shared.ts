@@ -12,6 +12,7 @@ import {
 import { createSession, rotateSession } from '@/lib/session';
 import { ValidationError } from '@/lib/validation';
 import { isProduction } from '@/lib/env';
+import { THEME_COOKIE, THEME_MAX_AGE, isTheme } from '@/lib/theme';
 
 export type PublicUser = {
   id: string;
@@ -96,13 +97,31 @@ export async function authSuccess(
   user: PublicUser,
   userAgent: string | undefined,
   existingSessionId?: string,
+  /**
+   * Apparence enregistree sur le compte. Posee en cookie a la connexion :
+   * c'est ce qui fait suivre le theme d'un appareil a l'autre, puisque le
+   * rendu serveur ne lit que le cookie.
+   */
+  themePreference?: string | null,
 ): Promise<NextResponse> {
   const { token } = existingSessionId
     ? await rotateSession(existingSessionId, user.id, userAgent)
     : await createSession(user.id, userAgent);
 
   const response = NextResponse.json({ user });
-  return setAuthCookies(response, user, token);
+  setAuthCookies(response, user, token);
+
+  if (isTheme(themePreference)) {
+    response.cookies.set(THEME_COOKIE, themePreference, {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: THEME_MAX_AGE,
+    });
+  }
+
+  return response;
 }
 
 /** Efface les cookies d'authentification. */

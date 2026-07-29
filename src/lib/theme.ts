@@ -1,4 +1,14 @@
-import { cookies } from 'next/headers';
+/**
+ * Vocabulaire du thème.
+ *
+ * Ce module ne dépend de rien : ni de `next/headers`, ni de Prisma. C'est
+ * délibéré — il est lu aussi bien par le rendu serveur que par les
+ * résolveurs GraphQL et par le composant client de bascule. Y importer le
+ * contexte de requête ferait entrer du code de requête dans un résolveur
+ * qui n'en a pas besoin.
+ *
+ * La lecture du cookie vit dans `theme-server.ts`.
+ */
 
 /**
  * Le thème n'est pas une donnée sensible : le cookie est lisible par le
@@ -25,13 +35,6 @@ export type ThemeChoice = Theme | null;
 
 export function isTheme(value: unknown): value is Theme {
   return typeof value === 'string' && (THEMES as readonly string[]).includes(value);
-}
-
-/** Lit le choix explicite de l'utilisateur, s'il en a fait un. */
-export async function readThemeChoice(): Promise<ThemeChoice> {
-  const store = await cookies();
-  const raw = store.get(THEME_COOKIE)?.value;
-  return isTheme(raw) ? raw : null;
 }
 
 /**

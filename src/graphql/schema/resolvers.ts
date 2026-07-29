@@ -16,6 +16,7 @@ import {
   normalizeEmail,
   LIMITS,
 } from '@/lib/validation';
+import { isTheme } from '@/lib/theme';
 import type { Context } from '@/types/context';
 
 /** Rejette toute requête non authentifiée et rend l'utilisateur courant. */
@@ -368,24 +369,38 @@ export const resolvers = {
      */
     updateProfile: async (
       _: unknown,
-      args: { input: { name?: string; email?: string } },
+      args: { input: { name?: string; email?: string; themePreference?: string | null } },
       context: Context,
     ) => {
       const currentUser = requireUser(context);
 
       assertLength(args.input.name, 'nom', LIMITS.userName);
 
+      // `null` est une valeur reçue légitime — « revenir au réglage système ».
+      // Seule une chaîne inconnue est refusée.
+      if (
+        args.input.themePreference !== undefined &&
+        args.input.themePreference !== null &&
+        !isTheme(args.input.themePreference)
+      ) {
+        throw new Error('Thème inconnu');
+      }
+
       const before = await prisma.user.findUnique({ where: { id: currentUser.id } });
       if (!before) throw new Error('Utilisateur introuvable');
 
-      // Le nom, lui, n'a rien à prouver : il s'applique tout de suite.
+      // Le nom et le thème n'ont rien à prouver : ils s'appliquent tout de
+      // suite. Seule l'adresse passe par une confirmation.
+      const data: { name?: string; themePreference?: string | null } = {};
+      if (args.input.name !== undefined) data.name = args.input.name.trim();
+      if (args.input.themePreference !== undefined) {
+        data.themePreference = args.input.themePreference;
+      }
+
       const user =
-        args.input.name === undefined
+        Object.keys(data).length === 0
           ? before
-          : await prisma.user.update({
-              where: { id: currentUser.id },
-              data: { name: args.input.name.trim() },
-            });
+          : await prisma.user.update({ where: { id: currentUser.id }, data });
 
       if (args.input.email === undefined) return user;
 
