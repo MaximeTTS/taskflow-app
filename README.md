@@ -117,19 +117,25 @@ pnpm install
 3. **Configuration de l'environnement**
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Remplissez les variables d'environnement :
+`.env.example` documente chaque variable et la conséquence de son absence. Le
+minimum pour démarrer en développement :
 
 ```env
-DATABASE_URL="file:./dev.db"
-JWT_SECRET="your-secret-key"
-CLOUDINARY_CLOUD_NAME="your-cloud-name"
-CLOUDINARY_API_KEY="your-api-key"
-CLOUDINARY_API_SECRET="your-api-secret"
-NEXT_PUBLIC_API_URL="http://localhost:3000"
+# Obligatoire — l'application refuse de démarrer sans.
+DATABASE_URL="postgresql://utilisateur:motdepasse@hote:5432/taskflow?schema=public"
+JWT_SECRET="32 caractères minimum"
 ```
+
+Les trois blocs optionnels ont chacun un comportement de repli explicite :
+
+| Bloc | Sans configuration |
+| --- | --- |
+| Email (`RESEND_API_KEY` ou `SMTP_URL` + `MAIL_FROM`) | Les messages s'affichent dans la console en développement, liens compris. **Requis en production** : la confirmation d'adresse et la réinitialisation de mot de passe en dépendent. |
+| Redis (`UPSTASH_REDIS_REST_URL` + `_TOKEN`) | Le limiteur de débit compte dans la mémoire de chaque instance. Suffisant sur une instance unique, partiel derrière plusieurs répliques. |
+| Cloudinary (`CLOUDINARY_*`) | Les avatars et images de tâches ne peuvent pas être envoyés. |
 
 4. **Initialiser la base de données**
 

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Icon } from '@/components/glass/Icon';
-import { Mark } from '@/components/glass/AppShell';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { Mark } from '@/components/ui/AppShell';
 
 export const metadata: Metadata = {
   title: 'Tarifs — TaskFlow',
@@ -51,19 +51,19 @@ export default function TarifsPage() {
       <main className="mx-auto max-w-3xl pt-[10vh] pb-24 text-center">
         <p className="tf-eyebrow mb-6">Tarifs</p>
         <h1 className="tf-display mb-5 text-[clamp(2.2rem,6vw,3.6rem)]">
-          <span className="tf-mask">
+          <span >
             <span>C’est gratuit.</span>
           </span>
         </h1>
-        <p className="mx-auto mb-12 max-w-lg text-[16px]" style={{ color: 'var(--color-haze)' }}>
+        <p className="mx-auto mb-12 max-w-lg text-[16px]" style={{ color: 'var(--text-2)' }}>
           TaskFlow est un projet personnel, ouvert et sans modèle économique. Pas de
           palier payant à venir, pas de fonction bridée pour vous pousser à l’achat.
         </p>
 
-        <Surface radius="xl" panel distort lift="lg" className="p-8 text-left sm:p-10">
+        <Surface radius="xl" lift="lg" className="p-8 text-left sm:p-10">
           <div className="mb-8 flex items-end gap-3">
             <span className="tf-display text-[3.4rem] leading-none">0 €</span>
-            <span className="pb-2 text-[14px]" style={{ color: 'var(--color-mute)' }}>
+            <span className="pb-2 text-[14px]" style={{ color: 'var(--text-3)' }}>
               pour toujours
             </span>
           </div>
@@ -71,7 +71,7 @@ export default function TarifsPage() {
           <ul className="mb-8 grid gap-3 sm:grid-cols-2">
             {INCLUS.map((i) => (
               <li key={i} className="flex items-start gap-2.5 text-[14px]">
-                <span className="mt-0.5 shrink-0" style={{ color: 'var(--color-aqua)' }}>
+                <span className="mt-0.5 shrink-0" style={{ color: 'var(--accent-text)' }}>
                   <Icon.Check size={16} />
                 </span>
                 {i}
@@ -92,7 +92,7 @@ export default function TarifsPage() {
           <p className="tf-eyebrow mb-4">Ce qui n’existe pas encore</p>
           <ul className="flex flex-wrap gap-2.5">
             {PAS_ENCORE.map((p) => (
-              <li key={p} className="tf-pill" style={{ color: 'var(--color-mute)' }}>
+              <li key={p} className="tf-pill" style={{ color: 'var(--text-3)' }}>
                 {p}
               </li>
             ))}

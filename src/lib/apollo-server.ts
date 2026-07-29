@@ -78,8 +78,27 @@ function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
+/**
+ * Origine du site, telle que le navigateur la voit.
+ *
+ * Derriere un proxy, l'URL de la requete porte le nom d'hote interne : ce sont
+ * les en-tetes poses par le proxy qui donnent le nom public. Un lien de
+ * confirmation construit sur le mauvais hote ne mene nulle part.
+ */
+function siteOrigin(req: Request): string {
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (!host) return new URL(req.url).origin;
+
+  const protocol =
+    req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ??
+    (isProduction ? 'https' : 'http');
+
+  return `${protocol}://${host}`;
+}
+
 export async function createContext({ req }: { req: Request }): Promise<Context> {
   const ip = clientIp(req);
+  const origin = siteOrigin(req);
 
   // Le cookie `httpOnly` est la source normale. L'en-tete Bearer reste accepte
   // pour les clients non navigateur (tests, outillage) : il n'ajoute pas de
@@ -87,9 +106,9 @@ export async function createContext({ req }: { req: Request }): Promise<Context>
   const token = readCookie(req, ACCESS_COOKIE) ?? extractTokenFromHeader(req.headers.get('authorization'));
 
   if (!token) {
-    return { user: null, ip };
+    return { user: null, ip, origin };
   }
 
   const user = verifyToken(token);
-  return { user, ip };
+  return { user, ip, origin };
 }

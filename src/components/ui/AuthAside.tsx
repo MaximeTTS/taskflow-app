@@ -28,23 +28,23 @@ const POINTS = [
 
 export function AuthAside() {
   return (
-    <div className="tf-cascade flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3">
       {POINTS.map((p) => (
-        <Surface key={p.titre} radius="lg" specular className="p-5">
+        <Surface key={p.titre} radius="lg" className="p-5">
           <div className="flex gap-4">
             <span
-              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center"
               style={{
-                background: 'rgba(79,224,213,0.11)',
-                color: 'var(--color-aqua)',
-                boxShadow: 'inset 0 0 0 1px rgba(79,224,213,0.22)',
+                borderRadius: 'var(--r-1)',
+                background: 'color-mix(in oklab, var(--accent) 14%, transparent)',
+                color: 'var(--accent-text)',
               }}
             >
               {p.icon}
             </span>
             <div>
               <p className="mb-1 text-[14px] font-semibold tracking-[-0.01em]">{p.titre}</p>
-              <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-haze)' }}>
+              <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
                 {p.texte}
               </p>
             </div>

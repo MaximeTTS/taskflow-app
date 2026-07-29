@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     // Deux quotas : par adresse (balayage de comptes) et par compte vise
     // (attaque repartie sur plusieurs adresses contre un compte precis).
     for (const key of [ip, `compte:${email}`]) {
-      const { allowed, retryAfterMs } = loginLimiter.check(key);
+      const { allowed, retryAfterMs } = await loginLimiter.check(key);
       if (!allowed) {
         const minutes = Math.max(1, Math.ceil(retryAfterMs / 60_000));
         return jsonError(`Trop de tentatives. Réessayez dans ${minutes} minute(s).`, 429);
@@ -41,6 +42,22 @@ export async function POST(req: NextRequest) {
     const isValid = await verifyPassword(body.password, user.password);
     if (!isValid) {
       return jsonError('Email ou mot de passe incorrect', 401);
+    }
+
+    // Après la vérification du mot de passe, et seulement après. Signaler
+    // « adresse non confirmée » à quelqu'un qui n'a pas le bon mot de passe
+    // reviendrait à confirmer que le compte existe — l'énumération que le
+    // message unique ci-dessus vient d'écarter. Ici, l'information n'est
+    // donnée qu'à qui détient déjà les identifiants.
+    if (!user.emailVerifiedAt) {
+      return NextResponse.json(
+        {
+          error:
+            'Votre adresse email n’a pas encore été confirmée. Vérifiez votre boîte de réception, ou demandez un nouveau lien.',
+          code: 'EMAIL_NOT_VERIFIED',
+        },
+        { status: 403 },
+      );
     }
 
     return await authSuccess(

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createRateLimiter } from '@/lib/rate-limit';
+import { forgotPasswordLimiter } from '@/lib/rate-limit';
 import { normalizeEmail } from '@/lib/validation';
 import { issueResetToken, RESET_TTL_MINUTES } from '@/lib/password-reset';
 import { sendMail } from '@/lib/mailer';
@@ -18,8 +18,6 @@ import { clientIp, isSameOrigin, jsonError } from '../_shared';
  * avec cet email » — ce qui transformerait ce point d'entrée en outil
  * d'énumération de comptes.
  */
-
-const forgotLimiter = createRateLimiter({ max: 5, windowMs: 60 * 60 * 1000 });
 
 /** Message unique, quel que soit le cas de figure. */
 const REPONSE = {
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
     // Deux quotas : par adresse et par compte visé. Le second empêche
     // d'inonder la boîte d'une personne précise depuis plusieurs adresses.
     for (const key of [ip, `compte:${email}`]) {
-      if (!forgotLimiter.check(key).allowed) {
+      if (!(await forgotPasswordLimiter.check(key)).allowed) {
         // Même en cas de dépassement, on ne dit rien de plus : répondre 429
         // ici révélerait qu'une adresse a déjà été sollicitée.
         return NextResponse.json(REPONSE);

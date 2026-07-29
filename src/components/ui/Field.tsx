@@ -12,7 +12,7 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 /**
- * Champ de saisie en verre.
+ * Champ de saisie.
  *
  * Le libellé est toujours rendu et lié au champ : les libellés flottants
  * font joli mais disparaissent au moment où l'utilisateur en a besoin,
@@ -31,26 +31,25 @@ export function Field({ label, error, hint, className = '', id, ...rest }: Props
         </label>
       )}
 
-      <div className="tf-field g" style={{ borderRadius: 'var(--r-md)' }}>
-        <span className="g-refract" />
-        <span className="g-tint" />
-        <span className="g-rim" />
-        <input
-          id={inputId}
-          className="tf-input"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
-          {...rest}
-        />
-      </div>
+      <input
+        id={inputId}
+        className="tf-input"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        {...rest}
+      />
 
       {error && (
-        <p id={`${inputId}-err`} className="mt-1.5 text-[12.5px]" style={{ color: 'var(--color-rose)' }}>
+        <p
+          id={`${inputId}-err`}
+          className="mt-1.5 text-[12.5px]"
+          style={{ color: 'var(--danger-text)' }}
+        >
           {error}
         </p>
       )}
       {!error && hint && (
-        <p id={`${inputId}-hint`} className="mt-1.5 text-[12.5px]" style={{ color: 'var(--color-mute)' }}>
+        <p id={`${inputId}-hint`} className="mt-1.5 text-[12.5px]" style={{ color: 'var(--text-3)' }}>
           {hint}
         </p>
       )}

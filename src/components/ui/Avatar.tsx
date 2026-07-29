@@ -7,9 +7,9 @@ import Image from 'next/image';
  * gardent deux teintes différentes d'un écran à l'autre, ce qui aide à les
  * reconnaître dans une liste bien plus qu'un gris uniforme.
  *
- * La teinte est contrainte aux bleus-verts-violets de la palette : un
- * hasard non borné produirait des rouges et des jaunes qui entreraient en
- * conflit avec les couleurs de statut.
+ * La teinte est contrainte aux cyans-bleus-violets de la palette : un
+ * hasard non borné produirait des rouges et des ambres qui entreraient en
+ * conflit avec les couleurs de priorité.
  */
 
 function hueFromName(name: string): number {
@@ -17,9 +17,9 @@ function hueFromName(name: string): number {
   for (let i = 0; i < name.length; i++) {
     hash = (hash * 31 + name.charCodeAt(i)) | 0;
   }
-  // 160°–290° : cyan → bleu → violet. Le rose et l'ambre restent réservés
+  // 170°–290° : cyan → bleu → violet. Le rouge et l'ambre restent réservés
   // aux priorités et aux statuts.
-  return 160 + (Math.abs(hash) % 130);
+  return 170 + (Math.abs(hash) % 120);
 }
 
 function initials(name: string): string {
@@ -33,7 +33,7 @@ type Props = {
   name: string;
   avatar?: string | null;
   size?: number;
-  /** Point vert de présence. */
+  /** Point de présence. */
   online?: boolean;
 };
 
@@ -43,12 +43,7 @@ export function Avatar({ name, avatar, size = 34, online = false }: Props) {
   return (
     <span
       className="relative inline-flex shrink-0 items-center justify-center rounded-full"
-      style={{
-        width: size,
-        height: size,
-        // L'anneau détache l'avatar du verre sur lequel il repose.
-        boxShadow: '0 0 0 1px rgba(255,255,255,0.14), 0 2px 8px rgba(0,0,0,0.45)',
-      }}
+      style={{ width: size, height: size, boxShadow: 'var(--shadow-1)' }}
     >
       {avatar ? (
         <Image
@@ -64,9 +59,8 @@ export function Avatar({ name, avatar, size = 34, online = false }: Props) {
         <span
           className="flex h-full w-full items-center justify-center rounded-full"
           style={{
-            background: `linear-gradient(150deg, hsl(${hue} 62% 52%) 0%, hsl(${(hue + 34) % 360} 58% 38%) 100%)`,
+            background: `linear-gradient(150deg, hsl(${hue} 62% 52%) 0%, hsl(${(hue + 34) % 360} 58% 40%) 100%)`,
             color: '#fff',
-            fontFamily: 'var(--font-body)',
             fontWeight: 600,
             fontSize: size * 0.38,
             letterSpacing: '-0.02em',
@@ -84,8 +78,10 @@ export function Avatar({ name, avatar, size = 34, online = false }: Props) {
             height: Math.max(8, size * 0.26),
             right: -1,
             bottom: -1,
-            background: 'var(--color-aqua)',
-            boxShadow: '0 0 0 2px var(--color-void)',
+            background: 'var(--success)',
+            // L'anneau reprend la couleur du fond : la pastille se détache
+            // quel que soit le thème, sans valeur écrite en dur.
+            boxShadow: '0 0 0 2px var(--bg-canvas)',
           }}
         />
       )}
@@ -109,7 +105,7 @@ export function AvatarStack({
   return (
     <div className="flex items-center">
       {shown.map((p, i) => (
-        <span key={`${p.name}-${i}`} style={{ marginLeft: i === 0 ? 0 : -size * 0.32 }}>
+        <span key={`${p.name}-${i}`} style={{ marginLeft: i === 0 ? 0 : -size * 0.29 }}>
           <Avatar name={p.name} avatar={p.avatar} size={size} />
         </span>
       ))}
@@ -117,13 +113,13 @@ export function AvatarStack({
         <span
           className="tf-num inline-flex items-center justify-center rounded-full"
           style={{
-            marginLeft: -size * 0.32,
+            marginLeft: -size * 0.29,
             width: size,
             height: size,
             fontSize: size * 0.34,
-            background: 'rgba(160,190,235,0.12)',
-            color: 'var(--color-haze)',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.12)',
+            background: 'var(--surface-2)',
+            color: 'var(--text-2)',
+            boxShadow: '0 0 0 1px var(--border)',
           }}
         >
           +{rest}

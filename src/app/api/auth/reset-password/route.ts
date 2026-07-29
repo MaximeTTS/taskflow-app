@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth';
 import { assertValidPassword } from '@/lib/validation';
-import { consumeResetToken } from '@/lib/password-reset';
+import { consumeResetToken, resolveResetToken } from '@/lib/password-reset';
 import { revokeAllSessions } from '@/lib/session';
 import { errorResponse, isSameOrigin, jsonError } from '../_shared';
 
@@ -27,14 +27,24 @@ export async function POST(req: NextRequest) {
       return jsonError('Lien et mot de passe requis', 400);
     }
 
-    // La validation vient avant la consommation : sinon un mot de passe trop
-    // court brûlerait le lien et obligerait à en redemander un.
-    assertValidPassword(body.password);
+    // Lecture d'abord, sans consommer : le contrôle de robustesse a besoin de
+    // l'email et du nom du compte, et un mot de passe refusé ne doit pas
+    // brûler le lien — il faudrait en redemander un à chaque essai.
+    const cible = await resolveResetToken(body.token);
+
+    if (!cible) {
+      // Inconnu, expiré ou déjà utilisé : un seul message pour les trois.
+      return jsonError('Ce lien n’est plus valable. Demandez-en un nouveau.', 400);
+    }
+
+    assertValidPassword(body.password, { email: cible.email, name: cible.name ?? undefined });
 
     const result = await consumeResetToken(body.token);
 
     if (!result) {
-      // Inconnu, expiré ou déjà utilisé : un seul message pour les trois.
+      // Le jeton était valable à la lecture et ne l'est plus : une autre
+      // requête l'a consommé entre-temps. C'est exactement ce que la garde
+      // atomique doit empêcher, et le message reste le même.
       return jsonError('Ce lien n’est plus valable. Demandez-en un nouveau.', 400);
     }
 

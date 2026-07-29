@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Surface } from './Surface';
 import { Mark } from './AppShell';
+import { ThemeToggle } from './ThemeToggle';
 
 /**
  * Coquille des pages de connexion et d'inscription.
@@ -31,26 +32,29 @@ export function AuthShell({
     <div className="min-h-dvh px-5 py-6 sm:px-8">
       <header className="mx-auto flex max-w-6xl items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
-          <Mark size={32} />
+          <Mark size={30} />
           <span className="text-[15px] font-semibold tracking-[-0.02em]">TaskFlow</span>
         </Link>
 
-        <p className="flex items-center gap-2 text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
-          <span className="hidden sm:inline">{altPrompt}</span>
-          <Link href={altHref} className="tf-link font-semibold">
-            {altLabel}
-          </Link>
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="flex items-center gap-2 text-[13.5px]" style={{ color: 'var(--text-2)' }}>
+            <span className="hidden sm:inline">{altPrompt}</span>
+            <Link href={altHref} className="tf-link font-semibold">
+              {altLabel}
+            </Link>
+          </p>
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl items-center gap-12 pt-[9vh] lg:grid-cols-[minmax(0,440px)_1fr] lg:gap-20">
         <div className="tf-in">
-          <h1 className="tf-display mb-2.5 text-[clamp(2rem,5vw,2.7rem)]">{title}</h1>
-          <p className="mb-8 text-[15px]" style={{ color: 'var(--color-haze)' }}>
+          <h1 className="tf-display mb-2.5 text-[clamp(1.9rem,5vw,2.5rem)]">{title}</h1>
+          <p className="mb-8 text-[15px]" style={{ color: 'var(--text-2)' }}>
             {subtitle}
           </p>
 
-          <Surface radius="xl" panel lift="lg" className="p-7 sm:p-8">
+          <Surface radius="xl" lift="md" className="p-7 sm:p-8">
             {children}
           </Surface>
         </div>

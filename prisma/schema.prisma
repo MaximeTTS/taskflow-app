@@ -18,14 +18,142 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Date de confirmation de l'adresse. `null` tant qu'elle ne l'est pas.
+  ///
+  /// Une date plutot qu'un booleen : savoir *quand* une adresse a ete
+  /// confirmee est ce qui permet de reconstituer une chronologie en cas de
+  /// litige, et un booleen ne se retro-remplit pas honnetement.
+  ///
+  /// La connexion l'exige. Les comptes anterieurs a cette colonne ont ete
+  /// marques comme verifies par la migration : les verrouiller aurait puni
+  /// des utilisateurs pour une regle qui n'existait pas a leur inscription.
+  emailVerifiedAt DateTime?
+
   ownedProjects Project[]       @relation("ProjectOwner")
   memberships   ProjectMember[]
   assignedTasks Task[]          @relation("TaskAssignee")
   createdTasks  Task[]          @relation("TaskCreator")
   sessions      Session[]
   resetTokens   PasswordResetToken[]
+  verificationTokens EmailVerificationToken[]
+  auditEvents        AuditLog[] @relation("AuditActor")
 
   @@map("users")
+}
+
+/// Inscription en attente de confirmation.
+///
+/// Aucun compte n'est cree tant que l'adresse n'est pas prouvee, et c'est ce
+/// qui ferme l'attaque dite de pre-inscription :
+///
+///   Creer le compte des l'inscription, meme non verifie, laissait un
+///   attaquant s'inscrire avec l'adresse d'un tiers. La victime recevait un
+///   lien de confirmation, l'ouvrait — par curiosite ou en croyant s'etre
+///   inscrite — et activait ainsi un compte portant son adresse mais dont
+///   l'attaquant connaissait le mot de passe.
+///
+/// En differant la creation, le lien ne confirme plus une adresse : il fait
+/// naitre le compte, avec le mot de passe de la demande qu'il porte. Seul
+/// celui qui recoit l'email peut donc decider quel mot de passe entre en
+/// vigueur, et l'attaquant n'obtient rien.
+///
+/// `email` est unique : une nouvelle demande remplace la precedente, ce qui
+/// invalide du meme coup l'ancien lien.
+model PendingRegistration {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  email     String   @unique
+  name      String?
+  /// Empreinte bcrypt, jamais le mot de passe en clair.
+  password  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("pending_registrations")
+}
+
+/// Jeton de confirmation d'adresse email.
+///
+/// Meme principe que Session et PasswordResetToken : seule l'empreinte est
+/// stockee.
+///
+/// `email` est stocke a part de `user.email` et c'est deliberé : lors d'un
+/// changement d'adresse, la nouvelle n'est appliquee au compte qu'une fois le
+/// lien ouvert. Tant que le jeton dort, le compte garde son adresse
+/// precedente — sinon quelqu'un ayant acces a une session ouverte pourrait
+/// deplacer le compte vers une adresse qu'il controle sans jamais la prouver.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+/// Journal d'audit des actions sensibles.
+///
+/// Rien ne tracait qui avait change un role ou supprime un projet : apres coup,
+/// la seule reponse possible etait « on ne sait pas ».
+///
+/// Deux choix de conception portent tout le reste :
+///
+/// 1. La cible n'est pas une cle etrangere. Un journal qui disparait avec ce
+///    qu'il decrit ne sert a rien — c'est precisement la suppression d'un
+///    projet qu'on veut pouvoir consulter ensuite. D'ou `targetType` +
+///    `targetId` en texte, et `targetLabel` qui conserve le nom lisible.
+///
+/// 2. L'acteur est en `SetNull` avec une copie de son email. Supprimer un
+///    compte ne doit pas effacer ce qu'il a fait, mais on ne garde pas non
+///    plus une ligne orpheline illisible.
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  createdAt DateTime    @default(now())
+
+  actorId String?
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  /// Email de l'acteur au moment des faits. Survit a la suppression du compte.
+  actorEmail String?
+
+  targetType  String
+  targetId    String
+  /// Nom lisible de la cible au moment des faits (nom du projet, email vise).
+  targetLabel String?
+
+  /// Details propres a l'action : ancien et nouveau role, adresse precedente.
+  metadata Json?
+
+  /// Adresse du client. Utile pour distinguer un acces legitime d'un autre.
+  ip String?
+
+  /// L'acces le plus frequent : l'historique d'un projet donne.
+  @@index([targetType, targetId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  ACCOUNT_CREATED
+  EMAIL_VERIFIED
+  EMAIL_CHANGE_REQUESTED
+  EMAIL_CHANGED
+  PASSWORD_CHANGED
+  PASSWORD_RESET
+  PROJECT_CREATED
+  PROJECT_DELETED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MEMBER_ROLE_CHANGED
 }
 
 /// Jeton de reinitialisation de mot de passe.

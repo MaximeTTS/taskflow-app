@@ -1,266 +1,378 @@
 @import 'tailwindcss';
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TASKFLOW — Abysse dichroïque
+   TASKFLOW — Modern Productivity
    ═══════════════════════════════════════════════════════════════════════
 
-   Le verre a besoin d'un fond profond pour exister : sans contraste
-   derrière lui, la réfraction ne se voit pas. Tout le système part de là.
+   Trois couches, et un composant ne lit jamais la première.
 
-   Les accents sont dérivés d'une propriété réelle du verre : l'arête d'un
-   verre épais tire vers le cyan (le fer dans la silice), et la dispersion
-   chromatique fait apparaître du magenta à l'opposé. Ces deux teintes ne
-   sont donc pas décoratives — elles décrivent la matière.
+     1. primitives  les hex bruts, statiques
+     2. rôles       la seule couche que les composants consomment,
+                    la seule que le thème redéfinit
+     3. composants  quand un composant a un besoin propre
+
+   Les rôles vivent en custom properties classiques et non dans `@theme` :
+   les variables d'un bloc `@theme` sont résolues statiquement au niveau
+   `:root`, et leur redéfinition sous un sélecteur d'attribut ne se
+   propage pas aux utilitaires générés. Le bloc `@theme` en bas de ce
+   fichier ne fait qu'aliaser les rôles pour rendre les utilitaires
+   Tailwind sensibles au thème.
    ═══════════════════════════════════════════════════════════════════════ */
 
-@theme {
-  /* ── Le sol ──────────────────────────────────────────────────────── */
-  --color-void: #04070e;
-  --color-deep: #080d18;
-  --color-tide: #101828;
-  --color-shelf: #16203a;
-
-  /* ── Les accents dichroïques ─────────────────────────────────────── */
-  --color-aqua: #4fe0d5;
-  --color-rose: #ff6b9d;
-  --color-amber: #ffb454;
-  --color-azure: #5ea8ff;
-
-  /* ── Le texte ────────────────────────────────────────────────────── */
-  --color-frost: #eaf0fa;
-  --color-haze: #93a2bf;
-  --color-mute: #5a6884;
-
-  /* ── Typographie ─────────────────────────────────────────────────── */
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-tf-mono), ui-monospace, monospace;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
-   Variables de matière
+   Couche 1 — primitives
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  color-scheme: dark;
+  --p-white: #ffffff;
+  --p-slate-50: #f8fafc;
+  --p-slate-100: #f1f5f9;
+  --p-slate-400: #94a3b8;
+  --p-slate-500: #64748b;
+  --p-slate-900: #0f172a;
 
-  /* Épaisseur du verre. Au-delà de 20px de flou, le texte derrière devient
-     une bouillie grise et l'effet de matière se perd. */
-  --glass-blur: 14px;
-  --glass-blur-panel: 20px;
-  --glass-sat: 145%;
+  --p-night-900: #0b0f19;
+  --p-night-800: #111827;
+  --p-night-700: #161d2c;
 
-  /* Le verre teinte, il ne peint pas : ces valeurs restent très basses. */
-  --glass-tint: rgba(150, 180, 225, 0.055);
-  --glass-tint-raised: rgba(160, 190, 235, 0.085);
+  --p-cyan: #00cfe8;
+  --p-cyan-deep: #0891a5;
+  --p-violet: #8b5cf6;
+  --p-violet-deep: #7c3aed;
+  --p-violet-soft: #a78bfa;
 
-  /* Les deux couleurs de la dispersion. */
-  --disp-cool: rgba(79, 224, 213, 0.5);
-  --disp-warm: rgba(255, 107, 157, 0.34);
+  --p-red: #f31260;
+  --p-red-deep: #be123c;
+  --p-amber: #f5a524;
+  --p-amber-deep: #b45309;
+  --p-green: #17c964;
+  --p-green-deep: #15803d;
+  --p-blue: #3882f6;
+  --p-blue-deep: #1d4ed8;
+}
 
-  --rim: rgba(255, 255, 255, 0.11);
-  --rim-strong: rgba(255, 255, 255, 0.2);
+/* ═══════════════════════════════════════════════════════════════════════
+   Couche 2 — rôles
+   ═══════════════════════════════════════════════════════════════════════
 
-  --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-xl: 30px;
+   Ordre de résolution :
+     1. `:root`                        thème clair, socle
+     2. `@media (prefers-color-scheme)` bascule sombre au premier passage,
+                                        quand aucun choix n'a encore été fait
+     3. `:root[data-theme='…']`        choix explicite, écrit par le serveur
+
+   Les sélecteurs de choix explicite portent `:root` devant l'attribut pour
+   peser 0,2,0. Sans lui, `[data-theme]` pèserait 0,1,0 comme `:root` et le
+   gagnant dépendrait de l'ordre d'écriture — l'ordre deviendrait porteur de
+   sens, donc fragile au premier déplacement de bloc.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --bg-canvas: var(--p-slate-50);
+    --surface-1: var(--p-white);
+    --surface-2: var(--p-slate-100);
+    --surface-sunken: var(--p-slate-100);
+
+    --text-1: var(--p-slate-900);
+    --text-2: var(--p-slate-500);
+    --text-3: var(--p-slate-400);
+    --text-on-accent: var(--p-white);
+
+    --border: rgb(15 23 42 / 0.08);
+    --border-strong: rgb(15 23 42 / 0.14);
+
+    --accent: var(--p-cyan);
+    --accent-text: var(--p-cyan-deep);
+    --accent-solid: var(--p-cyan-deep);
+    --accent-2: var(--p-violet);
+    --accent-2-text: var(--p-violet-deep);
+
+    --danger: var(--p-red);
+    --danger-text: var(--p-red-deep);
+    --warning: var(--p-amber);
+    --warning-text: var(--p-amber-deep);
+    --success: var(--p-green);
+    --success-text: var(--p-green-deep);
+    --info: var(--p-blue);
+    --info-text: var(--p-blue-deep);
+
+    /* L'ombre dérive de l'encre, jamais du noir pur : sur #F8FAFC un noir
+       à faible opacité vire au gris sale au lieu de creuser. */
+    --shadow-color: 15 23 42;
+    --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+    --shadow-2:
+      0 1px 2px rgb(var(--shadow-color) / 0.05),
+      0 8px 24px -12px rgb(var(--shadow-color) / 0.18);
+    --shadow-3:
+      0 2px 4px rgb(var(--shadow-color) / 0.06),
+      0 24px 56px -24px rgb(var(--shadow-color) / 0.26);
+
+    /* Le verre reste discret par défaut. Le lot 2 le renforcera quand un
+       fond riche sera actif — ici il ne sert qu'aux couches flottantes. */
+    --veil: rgb(248 250 252 / 0.72);
+    --glass: rgb(255 255 255 / 0.78);
+    --glass-blur: 16px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+
+      --bg-canvas: var(--p-night-900);
+      --surface-1: var(--p-night-800);
+      --surface-2: var(--p-night-700);
+      --surface-sunken: #0d121e;
+
+      --text-1: var(--p-slate-50);
+      --text-2: var(--p-slate-400);
+      --text-3: var(--p-slate-500);
+      --text-on-accent: #04121a;
+
+      --border: rgb(255 255 255 / 0.06);
+      --border-strong: rgb(255 255 255 / 0.11);
+
+      --accent-text: var(--p-cyan);
+      --accent-solid: var(--p-cyan);
+      --accent-2-text: var(--p-violet-soft);
+
+      --danger-text: #ff6b8a;
+      --warning-text: #ffc457;
+      --success-text: #4ade80;
+      --info-text: #7cb0ff;
+
+      --shadow-color: 0 0 0;
+      --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.4);
+      --shadow-2:
+        0 1px 2px rgb(var(--shadow-color) / 0.4),
+        0 8px 24px -12px rgb(var(--shadow-color) / 0.6);
+      --shadow-3:
+        0 2px 4px rgb(var(--shadow-color) / 0.45),
+        0 24px 56px -24px rgb(var(--shadow-color) / 0.75);
+
+      --veil: rgb(11 15 25 / 0.72);
+      --glass: rgb(17 24 39 / 0.78);
+    }
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+
+    --bg-canvas: var(--p-slate-50);
+    --surface-1: var(--p-white);
+    --surface-2: var(--p-slate-100);
+    --surface-sunken: var(--p-slate-100);
+
+    --text-1: var(--p-slate-900);
+    --text-2: var(--p-slate-500);
+    --text-3: var(--p-slate-400);
+    --text-on-accent: var(--p-white);
+
+    --border: rgb(15 23 42 / 0.08);
+    --border-strong: rgb(15 23 42 / 0.14);
+
+    --accent-text: var(--p-cyan-deep);
+    --accent-solid: var(--p-cyan-deep);
+    --accent-2-text: var(--p-violet-deep);
+
+    --danger-text: var(--p-red-deep);
+    --warning-text: var(--p-amber-deep);
+    --success-text: var(--p-green-deep);
+    --info-text: var(--p-blue-deep);
+
+    --shadow-color: 15 23 42;
+    --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+    --shadow-2:
+      0 1px 2px rgb(var(--shadow-color) / 0.05),
+      0 8px 24px -12px rgb(var(--shadow-color) / 0.18);
+    --shadow-3:
+      0 2px 4px rgb(var(--shadow-color) / 0.06),
+      0 24px 56px -24px rgb(var(--shadow-color) / 0.26);
+
+    --veil: rgb(248 250 252 / 0.72);
+    --glass: rgb(255 255 255 / 0.78);
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --bg-canvas: var(--p-night-900);
+    --surface-1: var(--p-night-800);
+    --surface-2: var(--p-night-700);
+    --surface-sunken: #0d121e;
+
+    --text-1: var(--p-slate-50);
+    --text-2: var(--p-slate-400);
+    --text-3: var(--p-slate-500);
+    --text-on-accent: #04121a;
+
+    --border: rgb(255 255 255 / 0.06);
+    --border-strong: rgb(255 255 255 / 0.11);
+
+    --accent-text: var(--p-cyan);
+    --accent-solid: var(--p-cyan);
+    --accent-2-text: var(--p-violet-soft);
+
+    --danger-text: #ff6b8a;
+    --warning-text: #ffc457;
+    --success-text: #4ade80;
+    --info-text: #7cb0ff;
+
+    --shadow-color: 0 0 0;
+    --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.4);
+    --shadow-2:
+      0 1px 2px rgb(var(--shadow-color) / 0.4),
+      0 8px 24px -12px rgb(var(--shadow-color) / 0.6);
+    --shadow-3:
+      0 2px 4px rgb(var(--shadow-color) / 0.45),
+      0 24px 56px -24px rgb(var(--shadow-color) / 0.75);
+
+    --veil: rgb(11 15 25 / 0.72);
+    --glass: rgb(17 24 39 / 0.78);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Géométrie et mouvement — invariants de thème
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --r-1: 8px;   /* champs, boutons */
+  --r-2: 12px;  /* cartes */
+  --r-3: 16px;  /* colonnes, panneaux */
+  --r-4: 24px;  /* modales */
+  --r-full: 999px;
 
   /* Une seule courbe pour toute l'interface : les mouvements se
      ressemblent, donc l'ensemble paraît d'une seule main. */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Budget de réponse : le premier retour visuel reste sous 100 ms. */
+  --dur-1: 90ms;
+  --dur-2: 180ms;
+  --dur-3: 320ms;
+  --dur-4: 560ms;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Base
    ═══════════════════════════════════════════════════════════════════════ */
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 
-body {
-  background: var(--color-void);
-  color: var(--color-frost);
-  font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-synthesis-weight: none;
-  min-height: 100dvh;
-  overflow-x: hidden;
-}
+  body {
+    background: var(--bg-canvas);
+    color: var(--text-1);
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
 
-::selection {
-  background: rgba(79, 224, 213, 0.26);
-  color: var(--color-frost);
-}
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 28%, transparent);
+    color: var(--text-1);
+  }
 
-/* Le focus doit rester lisible sur du verre : un outline système seul y
-   disparaît, on le double d'un décalage. */
-:focus-visible {
-  outline: 2px solid var(--color-aqua);
-  outline-offset: 2px;
-  border-radius: 4px;
+  :focus-visible {
+    outline: 2px solid var(--accent-solid);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: var(--r-full);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-3);
+    background-clip: content-box;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Typographie
+   ═══════════════════════════════════════════════════════════════════════
+
+   Space Grotesk est réservée à trois usages : titres de page, noms de
+   colonne, chiffres. Cette restriction est ce qui l'empêche de devenir
+   décorative — partout ailleurs, Inter.
    ═══════════════════════════════════════════════════════════════════════ */
 
 .tf-display {
   font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 0.98;
-  /* Bricolage porte un axe optique : on l'ouvre aux grandes tailles pour
-     que les contreformes respirent. */
-  font-variation-settings: 'opsz' 40;
-}
-
-.tf-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-mute);
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 .tf-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+}
+
+.tf-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   LE VERRE — pile de quatre couches
-   ═══════════════════════════════════════════════════════════════════════
-
-   1. .g-refract  réfraction : flou de l'arrière-plan + distorsion SVG
-   2. .g-tint     teinte du matériau
-   3. .g-rim      arête : dispersion dichroïque
-   4. .g-body     le contenu, au-dessus de tout
-
-   La séparation est nécessaire : `filter` et `backdrop-filter` sur un même
-   élément se composent mal, et une arête interne ne peut pas être floutée
-   avec l'arrière-plan sans devenir laiteuse.
+   Surfaces
    ═══════════════════════════════════════════════════════════════════════ */
 
-.g {
-  position: relative;
-  isolation: isolate;
-  border-radius: var(--r-lg);
+.tf-surface {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
 }
 
-.g-refract,
-.g-tint,
-.g-rim,
-.g-spec {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
+.tf-surface-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
 }
 
-.g-refract {
-  z-index: 1;
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+/* Le verre ne sert qu'aux couches qui flottent au-dessus du contenu.
+   Ailleurs il n'apporte rien qu'une surface opaque ne fasse mieux. */
+.tf-glass {
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  border: 1px solid var(--border);
 }
 
-.g-tint {
-  z-index: 2;
-  background: var(--glass-tint);
-}
-
-.g-raised .g-tint {
-  background: var(--glass-tint-raised);
-}
-
-.g-panel .g-refract {
-  backdrop-filter: blur(var(--glass-blur-panel)) saturate(var(--glass-sat));
-  -webkit-backdrop-filter: blur(var(--glass-blur-panel)) saturate(var(--glass-sat));
-}
-
-/* ── L'arête : la signature ──────────────────────────────────────────
-   Quatre ombres internes empilées. Les deux premières sont la dispersion
-   chromatique : cyan en haut à gauche, rose en bas à droite, comme la
-   lumière se sépare en traversant le bord d'un verre épais. */
-.g-rim {
-  z-index: 3;
-  box-shadow:
-    inset 1px 1px 0 0 var(--disp-cool),
-    inset -1px -1px 0 0 var(--disp-warm),
-    inset 0 0 0 1px var(--rim),
-    inset 0 1px 18px -8px rgba(255, 255, 255, 0.5);
-}
-
-.g-body {
-  position: relative;
-  z-index: 4;
-}
-
-/* Deux couches d'ombre : une proche et dense, une lointaine et diffuse.
-   Une seule ombre donne toujours un rendu plat. */
-.g-lift {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.5),
-    0 12px 32px -12px rgba(0, 0, 0, 0.75);
-}
-
-.g-lift-lg {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.55),
-    0 28px 70px -24px rgba(0, 0, 0, 0.85);
-}
-
-/* ── Spéculaire suivant le curseur ───────────────────────────────────
-   Coordonnées posées en JS sur --mx / --my, opacité sur --spec. */
-.g-spec {
-  z-index: 3;
-  opacity: var(--spec, 0);
-  transition: opacity 0.4s var(--ease);
-  background: radial-gradient(
-    260px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(79, 224, 213, 0.09) 32%,
-    transparent 68%
-  );
-}
-
-/* ── Distorsion SVG ──────────────────────────────────────────────────
-   Chromium uniquement, et volontairement.
-
-   Combiner `filter: url(#…)` et `backdrop-filter` n'est correctement rendu
-   que sur Chromium. Sur Firefox le filtre s'applique sans le flou de fond ;
-   sur Safari le résultat scintille. Plutôt que de servir un rendu cassé à
-   la moitié des visiteurs, la distorsion n'est activée que là où elle est
-   fiable — ailleurs le verre reste net et tout le reste du système (arête
-   dichroïque, spéculaire, teinte) fonctionne à l'identique. */
-/* On teste la variante préfixée `-webkit-`, que Firefox n'implémente pas :
-   c'est précisément le navigateur où la combinaison casse. Le test porte
-   donc sur la bonne chose, sans recourir à `@-moz-document`, non standard
-   et refusé par le moteur CSS. */
-@supports (-webkit-backdrop-filter: blur(1px)) {
-  .g-distort .g-refract {
-    filter: url(#tf-refract);
-  }
-
-  .g-distort-fine .g-refract {
-    filter: url(#tf-refract-fine);
-  }
-}
-
-/* Repli complet : sans `backdrop-filter`, le verre serait un trou
-   transparent illisible. On le remplace par une surface opaque. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .g-refract {
-    background: rgba(16, 24, 40, 0.92);
+  .tf-glass {
+    background: var(--surface-1);
   }
 }
+
+.tf-lift-1 { box-shadow: var(--shadow-1); }
+.tf-lift-2 { box-shadow: var(--shadow-2); }
+.tf-lift-3 { box-shadow: var(--shadow-3); }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Boutons
@@ -268,47 +380,28 @@ body {
 
 .tf-btn {
   position: relative;
-  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
   cursor: pointer;
-  background: transparent;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-weight: 550;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
   white-space: nowrap;
-  color: var(--color-frost);
+  overflow: hidden;
   transition:
-    transform 0.22s var(--ease),
-    box-shadow 0.22s var(--ease),
-    opacity 0.22s var(--ease);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    0 6px 18px -8px rgba(0, 0, 0, 0.6);
+    background var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease),
+    transform var(--dur-1) var(--ease);
 }
 
-.tf-btn .g-refract {
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-}
-
-.tf-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    0 10px 26px -8px rgba(0, 0, 0, 0.7);
-}
-
-/* Enfoncement mécanique : pas de rebond, la course est courte et sèche. */
 .tf-btn:active:not(:disabled) {
   transform: translateY(0.5px);
-  box-shadow:
-    inset 0 1px 3px rgba(0, 0, 0, 0.5),
-    0 2px 6px -3px rgba(0, 0, 0, 0.6);
-  transition-duration: 0.06s;
 }
 
 .tf-btn:disabled {
@@ -316,135 +409,71 @@ body {
   cursor: not-allowed;
 }
 
-.tf-btn-label {
-  position: relative;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ── L'arête balayante ───────────────────────────────────────────────
-   Un trait de lumière traverse le bouton une fois au survol. C'est la
-   lumière qui court le long d'une arête de verre quand on la tourne. */
-.tf-btn-sweep {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border-radius: inherit;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.tf-btn-sweep::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -60%;
-  width: 45%;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.42) 48%,
-    rgba(79, 224, 213, 0.3) 58%,
-    transparent 100%
-  );
-  transform: skewX(-18deg);
-  opacity: 0;
-}
-
-.tf-btn:hover:not(:disabled) .tf-btn-sweep::after {
-  animation: tf-sweep 0.85s var(--ease-out);
-}
-
-@keyframes tf-sweep {
-  0% {
-    left: -60%;
-    opacity: 0;
-  }
-  18% {
-    opacity: 1;
-  }
-  100% {
-    left: 115%;
-    opacity: 0;
-  }
-}
-
-/* ── Variantes ───────────────────────────────────────────────────────
-   L'action principale n'est pas un aplat de couleur : c'est du verre
-   éclairé par-derrière en cyan. La couleur vient de la lumière, pas de la
-   peinture — cohérent avec le reste du système. */
-.tf-btn-primary .g-tint {
-  background:
-    linear-gradient(168deg, rgba(79, 224, 213, 0.9) 0%, rgba(56, 189, 200, 0.82) 100%);
-}
-
 .tf-btn-primary {
-  color: #04121a;
-  font-weight: 650;
+  background: var(--accent-solid);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
 }
-
-.tf-btn-primary .g-rim {
-  box-shadow:
-    inset 1px 1px 0 0 rgba(255, 255, 255, 0.65),
-    inset -1px -1px 0 0 rgba(0, 60, 70, 0.3),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-
 .tf-btn-primary:hover:not(:disabled) {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    0 10px 30px -8px rgba(79, 224, 213, 0.45);
+  background: color-mix(in oklab, var(--accent-solid) 88%, var(--text-1));
 }
 
-.tf-btn-glass .g-tint {
-  background: rgba(160, 190, 235, 0.09);
+.tf-btn-neutral {
+  background: var(--surface-1);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+}
+.tf-btn-neutral:hover:not(:disabled) {
+  background: var(--surface-2);
 }
 
 .tf-btn-ghost {
-  box-shadow: none;
-}
-.tf-btn-ghost .g-tint,
-.tf-btn-ghost .g-refract {
   background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.tf-btn-ghost .g-rim {
-  box-shadow: none;
-}
-.tf-btn-ghost {
-  color: var(--color-haze);
+  color: var(--text-2);
 }
 .tf-btn-ghost:hover:not(:disabled) {
-  color: var(--color-frost);
-  box-shadow: none;
-}
-.tf-btn-ghost:hover:not(:disabled) .g-tint {
-  background: rgba(160, 190, 235, 0.08);
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
-.tf-btn-danger .g-tint {
-  background: linear-gradient(168deg, rgba(255, 107, 157, 0.85) 0%, rgba(226, 74, 124, 0.8) 100%);
-}
 .tf-btn-danger {
-  color: #1a0410;
-  font-weight: 650;
+  background: var(--danger);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
 }
 .tf-btn-danger:hover:not(:disabled) {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    0 10px 30px -8px rgba(255, 107, 157, 0.45);
+  background: color-mix(in oklab, var(--danger) 88%, black);
 }
 
 .tf-icon-btn {
   padding: 0;
-  color: var(--color-haze);
+  color: var(--text-2);
 }
-.tf-icon-btn:hover:not(:disabled) {
-  color: var(--color-frost);
+
+/* Le halo au clic part du point exact du clic — coordonnées posées en JS
+   sur --rx / --ry. Rien ne se déclenche sans interaction. */
+.tf-ripple {
+  position: absolute;
+  left: var(--rx, 50%);
+  top: var(--ry, 50%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.32;
+  pointer-events: none;
+  animation: tf-ripple var(--dur-4) var(--ease-out) forwards;
+}
+
+@keyframes tf-ripple {
+  to {
+    transform: scale(28);
+    opacity: 0;
+  }
 }
 
 .tf-spinner {
@@ -457,9 +486,7 @@ body {
 }
 
 @keyframes tf-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -470,147 +497,203 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 36px;
-  padding-inline: 13px;
-  border-radius: 999px;
+  height: 34px;
+  padding-inline: 12px;
+  border-radius: var(--r-1);
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--color-haze);
+  color: var(--text-2);
   white-space: nowrap;
   transition:
-    color 0.2s var(--ease),
-    background 0.2s var(--ease);
+    color var(--dur-2) var(--ease),
+    background var(--dur-2) var(--ease);
 }
 
 .tf-nav-item:hover {
-  color: var(--color-frost);
-  background: rgba(160, 190, 235, 0.08);
+  color: var(--text-1);
+  background: var(--surface-2);
 }
 
 .tf-nav-item[data-active] {
-  color: var(--color-frost);
-  background: rgba(160, 190, 235, 0.11);
-  box-shadow: inset 0 0 0 1px var(--rim);
+  color: var(--text-1);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
-/* Le soulignement se déploie depuis la gauche au survol : plus vivant
-   qu'un changement de couleur, plus discret qu'un fond. */
 .tf-link {
-  position: relative;
-  color: var(--color-aqua);
-  transition: color 0.2s var(--ease);
+  color: var(--accent-text);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-2) var(--ease);
+  text-decoration: underline;
+  text-decoration-color: transparent;
 }
 
-.tf-link::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -2px;
-  height: 1px;
-  background: currentColor;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.32s var(--ease-out);
-}
-
-.tf-link:hover::after {
-  transform: scaleX(1);
+.tf-link:hover {
+  text-decoration-color: currentColor;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Champs de saisie
    ═══════════════════════════════════════════════════════════════════════ */
 
-.tf-field {
-  position: relative;
-  isolation: isolate;
-  border-radius: var(--r-md);
-  transition: box-shadow 0.25s var(--ease);
+.tf-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .tf-input {
-  position: relative;
-  z-index: 4;
   width: 100%;
-  height: 46px;
-  padding-inline: 15px;
-  background: transparent;
-  border: 0;
+  height: 42px;
+  padding-inline: 13px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
   outline: none;
-  color: var(--color-frost);
-  font-family: var(--font-body);
-  font-size: 14.5px;
-  letter-spacing: -0.005em;
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
 }
 
 .tf-input::placeholder {
-  color: var(--color-mute);
+  color: var(--text-3);
 }
 
-.tf-field .g-refract {
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
+.tf-input:focus {
+  border-color: var(--accent-solid);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
 }
 
-.tf-field .g-tint {
-  background: rgba(10, 16, 32, 0.5);
+.tf-input[aria-invalid='true'] {
+  border-color: var(--danger);
 }
-
-/* Au focus, l'arête froide s'intensifie : la lumière se concentre sur le
-   champ actif. Signal net sans halo bleu système. */
-.tf-field:focus-within {
-  box-shadow: 0 0 0 3px rgba(79, 224, 213, 0.16);
-}
-
-.tf-field:focus-within .g-rim {
-  box-shadow:
-    inset 1px 1px 0 0 rgba(79, 224, 213, 0.9),
-    inset -1px -1px 0 0 var(--disp-warm),
-    inset 0 0 0 1px rgba(79, 224, 213, 0.35);
-}
-
-.tf-label {
-  display: block;
-  margin-bottom: 7px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--color-haze);
-  letter-spacing: -0.005em;
+.tf-input[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger) 22%, transparent);
 }
 
 .tf-textarea {
   height: auto;
   min-height: 96px;
-  padding-block: 12px;
+  padding-block: 11px;
   resize: vertical;
   line-height: 1.5;
 }
 
-/* La flèche native ne s'accorde pas au verre : on la masque et on pose
-   la nôtre. Le `<select>` reste natif pour tout le reste. */
 .tf-select {
   appearance: none;
   -webkit-appearance: none;
-  padding-right: 38px;
+  padding-right: 36px;
   cursor: pointer;
 }
 
-/* Le menu déroulant est rendu par le système : il faut lui donner des
-   couleurs lisibles, sinon il hérite du blanc par défaut. */
+/* Le menu déroulant est rendu par le système : sans couleurs explicites il
+   hérite du blanc et devient illisible en thème sombre. */
 .tf-select option {
-  background: #0e1626;
-  color: var(--color-frost);
+  background: var(--surface-1);
+  color: var(--text-1);
 }
 
 .tf-select-arrow {
   position: absolute;
-  z-index: 4;
-  right: 13px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--color-mute);
+  color: var(--text-3);
   pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Pastilles et étiquettes
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding-inline: 9px;
+  border-radius: var(--r-full);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: color-mix(in oklab, currentColor 18%, transparent);
+}
+
+.tf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Cartes de tâche
+   ═══════════════════════════════════════════════════════════════════════
+
+   La barre de 3 px à gauche porte la priorité. Elle encode une donnée
+   réelle — c'est ce qui lui donne le droit d'exister.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-card {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  padding: 13px 14px 13px 17px;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+
+.tf-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--prio, var(--text-3));
+}
+
+.tf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--border-strong);
+}
+
+/* En-tête de colonne : le nom, puis un filet sous toute la largeur. Le
+   compteur est un chiffre nu aligné à droite — pas de pastille. */
+.tf-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 13px;
+}
+
+.tf-col-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tf-col-count {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -627,32 +710,42 @@ body {
   padding: 20px;
 }
 
-/* Le voile est flouté, pas seulement assombri : la modale devient une
-   couche de verre de plus au lieu d'un panneau posé sur un écran éteint. */
 .tf-veil {
   position: absolute;
   inset: 0;
-  background: rgba(2, 5, 12, 0.62);
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
-  animation: tf-fade 0.3s var(--ease) both;
-}
-
-@keyframes tf-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  background: var(--veil);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: tf-fade var(--dur-3) var(--ease) both;
 }
 
 .tf-modal {
   position: relative;
   width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  box-shadow: var(--shadow-3);
+  animation: tf-rise var(--dur-3) var(--ease-out) both;
 }
 
-/* Sur mobile, la modale se colle en bas : le pouce y accède, alors qu'un
+@keyframes tf-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tf-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Sur mobile la modale se colle en bas : le pouce y accède, alors qu'un
    panneau centré oblige à remonter la main. */
 @media (max-width: 640px) {
   .tf-modal-root {
@@ -661,182 +754,60 @@ body {
   }
   .tf-modal {
     max-height: 92vh;
-    border-radius: var(--r-xl) var(--r-xl) 0 0 !important;
+    border-radius: var(--r-4) var(--r-4) 0 0;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Pastilles de statut
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.tf-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding-inline: 9px;
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  border: 1px solid currentColor;
-  background: color-mix(in oklab, currentColor 13%, transparent);
-}
-
-.tf-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 8px currentColor;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   Le fond
+   États de chargement
    ═══════════════════════════════════════════════════════════════════════
 
-   Trois nappes de lumière très lentes. Elles ne sont pas décoratives :
-   sans variation derrière le verre, la réfraction n'a rien à réfracter et
-   les panneaux ne sont plus que des rectangles gris.
+   Un squelette plutôt qu'un rouet : il annonce la forme de ce qui arrive,
+   donc l'attente se lit comme un chargement et non comme un blocage.
    ═══════════════════════════════════════════════════════════════════════ */
 
-.tf-ground {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
+.tf-skel {
+  position: relative;
   overflow: hidden;
-  pointer-events: none;
-  background:
-    radial-gradient(120% 80% at 50% -10%, #0d1830 0%, transparent 60%),
-    var(--color-void);
+  background: var(--surface-2);
+  border-radius: var(--r-1);
 }
 
-.tf-glow {
+.tf-skel::after {
+  content: '';
   position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  will-change: transform;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--text-3) 18%, transparent) 50%,
+    transparent 80%
+  );
+  animation: tf-shimmer 1.4s infinite;
 }
 
-.tf-glow-1 {
-  width: 46vw;
-  height: 46vw;
-  top: -12vw;
-  left: -8vw;
-  background: radial-gradient(circle, rgba(79, 224, 213, 0.2) 0%, transparent 68%);
-  animation: drift-a 34s var(--ease) infinite alternate;
-}
-
-.tf-glow-2 {
-  width: 40vw;
-  height: 40vw;
-  bottom: -14vw;
-  right: -6vw;
-  background: radial-gradient(circle, rgba(255, 107, 157, 0.16) 0%, transparent 68%);
-  animation: drift-b 42s var(--ease) infinite alternate;
-}
-
-.tf-glow-3 {
-  width: 34vw;
-  height: 34vw;
-  top: 34%;
-  left: 46%;
-  background: radial-gradient(circle, rgba(94, 168, 255, 0.13) 0%, transparent 70%);
-  animation: drift-c 50s var(--ease) infinite alternate;
-}
-
-/* Grain : casse le banding des dégradés très sombres, qui s'escalierent
-   visiblement sur un écran 8 bits. */
-.tf-grain {
-  position: absolute;
-  inset: -50%;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
-  pointer-events: none;
-}
-
-@keyframes drift-a {
-  to {
-    transform: translate3d(14vw, 8vh, 0) scale(1.18);
-  }
-}
-@keyframes drift-b {
-  to {
-    transform: translate3d(-12vw, -10vh, 0) scale(1.12);
-  }
-}
-@keyframes drift-c {
-  to {
-    transform: translate3d(-9vw, 11vh, 0) scale(0.88);
-  }
+@keyframes tf-shimmer {
+  to { transform: translateX(100%); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Mouvement
-   ═══════════════════════════════════════════════════════════════════════
-
-   La signature : les éléments arrivent flous et se précisent, comme du
-   verre qui se met au point. Le mouvement décrit la matière au lieu de
-   simplement déplacer des boîtes.
+   Entrées
    ═══════════════════════════════════════════════════════════════════════ */
 
-@keyframes tf-focus-in {
+@keyframes tf-in {
   from {
     opacity: 0;
-    filter: blur(14px);
-    transform: translate3d(0, 18px, 0) scale(0.985);
+    transform: translate3d(0, 10px, 0);
   }
   to {
     opacity: 1;
-    filter: blur(0);
     transform: none;
   }
 }
 
 .tf-in {
-  animation: tf-focus-in 0.85s var(--ease-out) both;
-}
-
-/* Cascade : chaque enfant part un cran plus tard. Assez lent pour se voir,
-   assez court pour ne pas faire attendre. */
-.tf-cascade > * {
-  animation: tf-focus-in 0.75s var(--ease-out) both;
-}
-.tf-cascade > *:nth-child(1) { animation-delay: 0.04s; }
-.tf-cascade > *:nth-child(2) { animation-delay: 0.11s; }
-.tf-cascade > *:nth-child(3) { animation-delay: 0.18s; }
-.tf-cascade > *:nth-child(4) { animation-delay: 0.25s; }
-.tf-cascade > *:nth-child(5) { animation-delay: 0.32s; }
-.tf-cascade > *:nth-child(6) { animation-delay: 0.39s; }
-.tf-cascade > *:nth-child(7) { animation-delay: 0.46s; }
-.tf-cascade > *:nth-child(8) { animation-delay: 0.53s; }
-
-/* Révélation de titre par masque : la ligne se dévoile sous un cache. */
-@keyframes tf-reveal {
-  from {
-    transform: translate3d(0, 100%, 0);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-
-.tf-mask {
-  display: block;
-  overflow: hidden;
-  /* Compensation : sans elle, le masque coupe les jambages (g, p, y). */
-  padding-bottom: 0.14em;
-  margin-bottom: -0.14em;
-}
-
-.tf-mask > * {
-  display: block;
-  animation: tf-reveal 0.9s var(--ease-out) both;
+  animation: tf-in var(--dur-4) var(--ease-out) both;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -852,29 +823,35 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
-  /* Les nappes de fond s'arrêtent net : c'est le mouvement ambiant le plus
-     susceptible de gêner. */
-  .tf-glow {
-    animation: none !important;
-  }
 }
 
-/* Barres de défilement discrètes, accordées au fond. */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(147, 162, 191, 0.18);
-  border-radius: 99px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(147, 162, 191, 0.32);
-  background-clip: content-box;
+/* ═══════════════════════════════════════════════════════════════════════
+   Couche 3 — alias pour Tailwind
+   ═══════════════════════════════════════════════════════════════════════
+
+   Ces variables ne portent aucune valeur propre : elles pointent vers les
+   rôles. Comme rôles et alias sont tous deux déclarés sur `:root`, la
+   substitution suit le thème et les utilitaires générés en héritent.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--text-1);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-2: var(--accent-2);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
 }

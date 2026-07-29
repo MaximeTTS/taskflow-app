@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Modal } from '@/components/glass/Modal';
-import { Button, IconButton } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Select, Textarea } from '@/components/glass/Select';
-import { Alert } from '@/components/glass/Alert';
-import { Icon } from '@/components/glass/Icon';
-import { STATUS, PRIORITY, STATUS_ORDER } from '@/components/glass/Pill';
+import { Modal } from '@/components/ui/Modal';
+import { Button, IconButton } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { Select, Textarea } from '@/components/ui/Select';
+import { Alert } from '@/components/ui/Alert';
+import { Icon } from '@/components/ui/Icon';
+import { STATUS, PRIORITY, STATUS_ORDER } from '@/components/ui/Pill';
 import type { Task, Project } from '../_types';
 
 const STATUS_OPTIONS = [...STATUS_ORDER, 'CANCELLED' as const].map((s) => ({
@@ -101,7 +101,7 @@ export function TaskModal({
         canEdit ? (
           confirmDelete ? (
             <>
-              <span className="mr-auto text-[13px]" style={{ color: 'var(--color-haze)' }}>
+              <span className="mr-auto text-[13px]" style={{ color: 'var(--text-2)' }}>
                 Supprimer définitivement cette tâche ?
               </span>
               <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
@@ -209,7 +209,7 @@ export function TaskModal({
           </div>
 
           {task.images.length === 0 ? (
-            <p className="text-[13px]" style={{ color: 'var(--color-mute)' }}>
+            <p className="text-[13px]" style={{ color: 'var(--text-3)' }}>
               Aucune image jointe.
             </p>
           ) : (
@@ -223,7 +223,7 @@ export function TaskModal({
                     height={130}
                     sizes="(max-width: 640px) 45vw, 200px"
                     className="h-[110px] w-full rounded-[10px] object-cover"
-                    style={{ boxShadow: 'inset 0 0 0 1px var(--rim)' }}
+                    style={{ boxShadow: 'inset 0 0 0 1px var(--border)' }}
                   />
                   {canEdit && (
                     <span className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -263,7 +263,7 @@ export function TaskModal({
           />
         </div>
 
-        <p className="tf-num text-[11.5px]" style={{ color: 'var(--color-mute)' }}>
+        <p className="tf-num text-[11.5px]" style={{ color: 'var(--text-3)' }}>
           Créée par {task.creator.name}
         </p>
       </div>

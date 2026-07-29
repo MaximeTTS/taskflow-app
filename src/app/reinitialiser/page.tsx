@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PASSWORD_MIN } from '@/lib/validation';
-import { AuthShell } from '@/components/glass/AuthShell';
-import { Button } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Alert } from '@/components/glass/Alert';
+import { AuthShell } from '@/components/ui/AuthShell';
+import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { PasswordField, passwordAcceptable } from '@/components/ui/PasswordField';
+import { Alert } from '@/components/ui/Alert';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -110,14 +110,13 @@ export default function ResetPasswordPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
           {error && <Alert tone="danger">{error}</Alert>}
 
-          <Field
+          {/* Le contexte du compte (email, nom) n'est pas connu de cette page :
+              le lien ne le porte pas, et l'y mettre reviendrait à révéler à qui
+              appartient le jeton. Le serveur, lui, applique les deux contrôles. */}
+          <PasswordField
             label="Nouveau mot de passe"
-            type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            minLength={PASSWORD_MIN}
-            hint={`${PASSWORD_MIN} caractères minimum.`}
+            onChange={setPassword}
             autoFocus
             required
           />
@@ -137,7 +136,7 @@ export default function ResetPasswordPage() {
             variant="primary"
             size="lg"
             loading={loading}
-            disabled={mismatch || password.length < PASSWORD_MIN}
+            disabled={mismatch || !passwordAcceptable(password)}
             block
             className="mt-1"
           >

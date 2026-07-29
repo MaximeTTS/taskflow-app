@@ -1,238 +1,357 @@
 'use client';
 
+import { useState } from 'react';
 import { notFound } from 'next/navigation';
-import { Surface } from '@/components/glass/Surface';
-import { Button, IconButton } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
+import { Surface } from '@/components/ui/Surface';
+import { Button, IconButton } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { Select, Textarea } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
+import { Alert } from '@/components/ui/Alert';
+import { Icon } from '@/components/ui/Icon';
+import { Avatar, AvatarStack } from '@/components/ui/Avatar';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { PRIORITY, STATUS, PriorityPill, StatusPill, RolePill } from '@/components/ui/Pill';
+import type { Priority, TaskStatus } from '@/components/ui/Pill';
 
 /**
  * Atelier du système de design.
  *
  * Page de travail, jamais servie en production : elle sert à juger les
- * matières et les mouvements côte à côte avant de les répandre dans
- * l'application.
+ * composants côte à côte, dans les deux thèmes, avant de les répandre dans
+ * l'application. C'est l'écran de contrôle des lots suivants.
  */
 
-const STATUTS = [
-  { label: 'À faire', color: 'var(--color-mute)' },
-  { label: 'En cours', color: 'var(--color-azure)' },
-  { label: 'En revue', color: 'var(--color-amber)' },
-  { label: 'Terminé', color: 'var(--color-aqua)' },
-  { label: 'Annulé', color: '#4a5570' },
+const ROLES = [
+  { nom: '--bg-canvas', role: 'le fond de page' },
+  { nom: '--surface-1', role: 'cartes, panneaux' },
+  { nom: '--surface-2', role: 'creux, survols' },
+  { nom: '--text-1', role: 'texte principal' },
+  { nom: '--text-2', role: 'texte secondaire' },
+  { nom: '--text-3', role: 'métadonnées' },
+  { nom: '--border', role: 'séparateurs' },
+  { nom: '--accent', role: 'aplats, états actifs' },
+  { nom: '--accent-text', role: 'liens, texte accentué' },
+  { nom: '--accent-2', role: 'second accent' },
+  { nom: '--danger', role: 'urgent, destructif' },
+  { nom: '--warning', role: 'priorité haute' },
 ];
 
-const PALETTE = [
-  { nom: 'void', hex: '#04070E', role: 'le sol' },
-  { nom: 'deep', hex: '#080D18', role: 'creux' },
-  { nom: 'tide', hex: '#101828', role: 'surfaces' },
-  { nom: 'aqua', hex: '#4FE0D5', role: 'accent · terminé' },
-  { nom: 'rose', hex: '#FF6B9D', role: 'dispersion · urgent' },
-  { nom: 'amber', hex: '#FFB454', role: 'revue · haute' },
-  { nom: 'azure', hex: '#5EA8FF', role: 'en cours · moyenne' },
-  { nom: 'frost', hex: '#EAF0FA', role: 'texte' },
+const ECHELLE = [11, 12.5, 13, 15, 18, 22, 30, 44];
+
+const RAYONS = [
+  { nom: '--r-1', px: 8, usage: 'champs, boutons' },
+  { nom: '--r-2', px: 12, usage: 'cartes' },
+  { nom: '--r-3', px: 16, usage: 'colonnes, panneaux' },
+  { nom: '--r-4', px: 24, usage: 'modales' },
 ];
+
+function Section({
+  titre,
+  note,
+  children,
+}: {
+  titre: string;
+  note?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-10">
+      <div className="mb-4">
+        <h2 className="tf-display text-[18px]">{titre}</h2>
+        {note && (
+          <p className="mt-1 max-w-2xl text-[13px]" style={{ color: 'var(--text-2)' }}>
+            {note}
+          </p>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function LabPage() {
   // Ceinture et bretelles : la page n'existe pas hors développement.
   if (process.env.NODE_ENV === 'production') notFound();
 
+  const [ouverte, setOuverte] = useState(false);
+  const [texte, setTexte] = useState('');
+
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <header className="mb-16">
-        <p className="tf-eyebrow mb-4">Atelier · système de design</p>
-        <h1 className="tf-display text-[clamp(2.6rem,7vw,4.6rem)] mb-5">
-          <span className="tf-mask">
-            <span>Abysse</span>
-          </span>
-          <span className="tf-mask">
-            <span style={{ color: 'var(--color-aqua)', animationDelay: '0.12s' }}>dichroïque</span>
-          </span>
-        </h1>
-        <p className="max-w-lg text-[15px]" style={{ color: 'var(--color-haze)' }}>
-          Le verre ne peint pas, il réfracte. Les arêtes portent une dispersion
-          chromatique — cyan d&apos;un côté, rose de l&apos;autre — comme la lumière qui
-          traverse un bord épais.
-        </p>
+    <main className="mx-auto max-w-5xl px-6 py-12">
+      <header className="mb-10 flex items-start justify-between gap-6">
+        <div>
+          <p className="tf-eyebrow mb-2">Atelier</p>
+          <h1 className="tf-display text-[30px]">Système TaskFlow</h1>
+          <p className="mt-2 max-w-lg text-[14px]" style={{ color: 'var(--text-2)' }}>
+            Tout doit tenir dans les deux thèmes. Bascule, et cherche ce qui casse.
+          </p>
+        </div>
+        <ThemeToggle />
       </header>
 
-      {/* ── Matières ─────────────────────────────────────────────── */}
-      <Section titre="Matières" numero="01">
-        <div className="grid gap-5 sm:grid-cols-3 tf-cascade">
-          <Surface radius="lg" specular className="p-6">
-            <p className="tf-eyebrow mb-2">Simple</p>
-            <p className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
-              Flou, teinte, arête dichroïque. Le socle de tout le reste.
-            </p>
-          </Surface>
-
-          <Surface radius="lg" raised specular className="p-6">
-            <p className="tf-eyebrow mb-2">Soulevée</p>
-            <p className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
-              Teinte plus dense. Pour ce qui passe au premier plan.
-            </p>
-          </Surface>
-
-          <Surface radius="lg" panel distort specular lift="lg" className="p-6">
-            <p className="tf-eyebrow mb-2">Distordue</p>
-            <p className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
-              Réfraction SVG active. Passe la souris pour voir le reflet.
-            </p>
-          </Surface>
+      <Section titre="Rôles de couleur" note="Les composants ne lisent que ces noms, jamais un hex.">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {ROLES.map((r) => (
+            <div
+              key={r.nom}
+              className="flex items-center gap-3 rounded-[var(--r-1)] p-2.5"
+              style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
+            >
+              <span
+                className="h-9 w-9 shrink-0 rounded-[var(--r-1)]"
+                style={{ background: `var(${r.nom})`, border: '1px solid var(--border-strong)' }}
+              />
+              <div className="min-w-0">
+                <p className="truncate text-[11.5px]">{r.nom}</p>
+                <p className="truncate text-[11.5px]" style={{ color: 'var(--text-3)' }}>
+                  {r.role}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </Section>
 
-      {/* ── Boutons ──────────────────────────────────────────────── */}
-      <Section titre="Boutons" numero="02">
-        <Surface radius="lg" panel className="p-8">
-          <div className="flex flex-wrap items-center gap-3 mb-7">
-            <Button variant="primary" size="lg">
-              Créer un projet
-            </Button>
-            <Button variant="glass" size="lg">
-              Parcourir
-            </Button>
-            <Button variant="ghost" size="lg">
-              Annuler
-            </Button>
-            <Button variant="danger" size="lg">
-              Supprimer
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 mb-7">
-            <Button variant="primary" size="md">
-              Taille moyenne
-            </Button>
-            <Button variant="glass" size="sm">
-              Petite
-            </Button>
-            <Button variant="primary" loading>
-              Enregistrement
-            </Button>
-            <Button variant="primary" disabled>
-              Indisponible
-            </Button>
-            <IconButton label="Ajouter">+</IconButton>
-          </div>
-
-          <p className="text-[13px]" style={{ color: 'var(--color-mute)' }}>
-            Au survol : le reflet suit le curseur, une arête lumineuse balaie la
-            surface, l&apos;élément se soulève d&apos;un pixel. À l&apos;appui il s&apos;enfonce.
-          </p>
-        </Surface>
-      </Section>
-
-      {/* ── Saisie ───────────────────────────────────────────────── */}
-      <Section titre="Saisie" numero="03">
-        <Surface radius="lg" panel className="p-8">
-          <div className="grid gap-5 sm:grid-cols-2 max-w-2xl">
-            <Field label="Adresse email" type="email" placeholder="vous@exemple.com" />
-            <Field label="Nom du projet" placeholder="Refonte du site" />
-            <Field
-              label="Mot de passe"
-              type="password"
-              placeholder="••••••••••"
-              hint="10 caractères minimum."
-            />
-            <Field
-              label="Échéance"
-              placeholder="14 août 2026"
-              error="Cette date est déjà passée."
-            />
-          </div>
-        </Surface>
-      </Section>
-
-      {/* ── Statuts ──────────────────────────────────────────────── */}
-      <Section titre="Statuts et priorités" numero="04">
-        <Surface radius="lg" panel className="p-8">
-          <div className="flex flex-wrap gap-2.5 mb-6">
-            {STATUTS.map((s) => (
-              <span key={s.label} className="tf-pill" style={{ color: s.color }}>
-                <span className="tf-dot" />
-                {s.label}
+      <Section
+        titre="Typographie"
+        note="Inter partout. Space Grotesk sur les titres, les noms de colonne et les chiffres — nulle part ailleurs."
+      >
+        <Surface radius="xl" className="p-6">
+          {ECHELLE.map((t) => (
+            <div
+              key={t}
+              className="flex items-baseline gap-4 border-b py-2 last:border-0"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <span className="tf-num w-14 shrink-0 text-[11px]" style={{ color: 'var(--text-3)' }}>
+                {t}px
               </span>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2.5">
-            {[
-              { label: 'Basse', color: 'var(--color-mute)' },
-              { label: 'Moyenne', color: 'var(--color-azure)' },
-              { label: 'Haute', color: 'var(--color-amber)' },
-              { label: 'Urgente', color: 'var(--color-rose)' },
-            ].map((p) => (
-              <span key={p.label} className="tf-pill" style={{ color: p.color }}>
-                {p.label}
+              <span className={t >= 22 ? 'tf-display' : ''} style={{ fontSize: t }}>
+                Refonte 2026
               </span>
-            ))}
-          </div>
+            </div>
+          ))}
         </Surface>
       </Section>
 
-      {/* ── Typographie ──────────────────────────────────────────── */}
-      <Section titre="Typographie" numero="05">
-        <Surface radius="lg" panel className="p-8">
-          <p className="tf-eyebrow mb-3">Bricolage Grotesque · affichage</p>
-          <p className="tf-display text-5xl mb-2">Sprint 24</p>
-          <p className="tf-display text-3xl mb-8" style={{ color: 'var(--color-haze)' }}>
-            Douze tâches en cours
-          </p>
-
-          <p className="tf-eyebrow mb-3">Instrument Sans · texte courant</p>
-          <p className="max-w-xl mb-8 text-[15px]" style={{ color: 'var(--color-haze)' }}>
-            Le corps de texte reste à quinze pixels avec une interligne de 1,55.
-            Sur du verre, le contraste chute : une police à grande hauteur d&apos;x
-            reste lisible là où une linéale étroite décrocherait.
-          </p>
-
-          <p className="tf-eyebrow mb-3">JetBrains Mono · données</p>
-          <p className="tf-num text-2xl">
-            68<span style={{ color: 'var(--color-mute)' }}>%</span> · 14/08/2026
-          </p>
-        </Surface>
-      </Section>
-
-      {/* ── Palette ──────────────────────────────────────────────── */}
-      <Section titre="Palette" numero="06">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {PALETTE.map((c) => (
-            <Surface key={c.nom} radius="md" lift="none" className="overflow-hidden">
-              <div style={{ background: c.hex, height: 56 }} />
-              <div className="p-3">
-                <p className="tf-num text-[12px]">{c.hex}</p>
-                <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--color-mute)' }}>
-                  {c.nom} — {c.role}
-                </p>
-              </div>
+      <Section titre="Rayons et ombres">
+        <div className="mb-4 grid gap-3 sm:grid-cols-4">
+          {RAYONS.map((r) => (
+            <div key={r.nom} className="text-center">
+              <div
+                className="mb-2 h-20"
+                style={{
+                  background: 'var(--surface-1)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: `var(${r.nom})`,
+                }}
+              />
+              <p className="text-[11.5px]">{r.px}px</p>
+              <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+                {r.usage}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(['sm', 'md', 'lg'] as const).map((l, i) => (
+            <Surface key={l} radius="lg" lift={l} className="p-5 text-center text-[12.5px]">
+              ombre {i + 1}
             </Surface>
           ))}
         </div>
       </Section>
-    </main>
-  );
-}
 
-function Section({
-  titre,
-  numero,
-  children,
-}: {
-  titre: string;
-  numero: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-14">
-      {/* La numérotation encode une progression réelle : du matériau brut
-          vers son application. Elle n'est pas décorative. */}
-      <div className="flex items-baseline gap-3 mb-5">
-        <span className="tf-num text-[12px]" style={{ color: 'var(--color-aqua)' }}>
-          {numero}
-        </span>
-        <h2 className="tf-display text-xl">{titre}</h2>
-        <span className="flex-1 h-px" style={{ background: 'var(--rim)' }} />
-      </div>
-      {children}
-    </section>
+      <Section
+        titre="Boutons"
+        note="Le halo au clic part du point exact du clic. Rien ne bouge sans interaction."
+      >
+        <Surface radius="xl" className="flex flex-wrap items-center gap-3 p-6">
+          <Button variant="primary">Nouvelle tâche</Button>
+          <Button variant="neutral">Filtrer</Button>
+          <Button variant="ghost">Annuler</Button>
+          <Button variant="danger">Supprimer</Button>
+          <Button variant="primary" loading>
+            Enregistrement
+          </Button>
+          <Button variant="primary" disabled>
+            Indisponible
+          </Button>
+          <Button variant="neutral" size="sm">
+            Petit
+          </Button>
+          <Button variant="neutral" size="lg">
+            Grand
+          </Button>
+          <IconButton label="Ajouter">
+            <Icon.Plus size={16} />
+          </IconButton>
+        </Surface>
+      </Section>
+
+      <Section titre="Champs">
+        <Surface radius="xl" className="grid gap-4 p-6 sm:grid-cols-2">
+          <Field label="Titre" placeholder="Migrer les jetons de couleur" />
+          <Field
+            label="Email"
+            type="email"
+            placeholder="nom@exemple.fr"
+            hint="Sert aussi d'identifiant."
+          />
+          <Field
+            label="Champ en erreur"
+            defaultValue="ab"
+            error="Ce titre doit faire 3 caractères au minimum."
+          />
+          <Select
+            label="Priorité"
+            options={Object.entries(PRIORITY).map(([value, p]) => ({ value, label: p.label }))}
+          />
+          <Textarea
+            label="Description"
+            className="sm:col-span-2"
+            placeholder="Ce que la tâche recouvre…"
+            value={texte}
+            onChange={(e) => setTexte(e.target.value)}
+          />
+        </Surface>
+      </Section>
+
+      <Section
+        titre="Statuts, priorités, rôles"
+        note="Chaque pastille porte un mot : la couleur seule ne suffit pas."
+      >
+        <Surface radius="xl" className="flex flex-wrap items-center gap-2.5 p-6">
+          {(Object.keys(STATUS) as TaskStatus[]).map((s) => (
+            <StatusPill key={s} status={s} />
+          ))}
+          {(Object.keys(PRIORITY) as Priority[]).map((p) => (
+            <PriorityPill key={p} priority={p} />
+          ))}
+          {['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'].map((r) => (
+            <RolePill key={r} role={r} />
+          ))}
+        </Surface>
+      </Section>
+
+      <Section titre="Personnes">
+        <Surface radius="xl" className="flex flex-wrap items-center gap-6 p-6">
+          <Avatar name="Maxime Lefebvre" size={40} online />
+          <Avatar name="Rachid Kaci" size={40} />
+          <Avatar name="Anne Duval" size={32} />
+          <AvatarStack
+            people={[
+              { name: 'Maxime Lefebvre' },
+              { name: 'Rachid Kaci' },
+              { name: 'Anne Duval' },
+              { name: 'Sofia Marchetti' },
+              { name: 'Tom Bernard' },
+              { name: 'Lina Ferrand' },
+            ]}
+          />
+        </Surface>
+      </Section>
+
+      <Section
+        titre="Colonne et cartes"
+        note="Le nom, puis le filet sous toute la largeur. Le compteur est un chiffre nu à droite. La barre de 3 px porte la priorité."
+      >
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <div className="tf-col-head">
+              <span className="tf-col-name">En cours</span>
+              <span className="tf-col-count">3</span>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <article className="tf-card" style={{ '--prio': 'var(--danger)' } as React.CSSProperties}>
+                <p className="text-[13px] font-medium">Panneau de personnalisation des fonds</p>
+                <div
+                  className="mt-2.5 flex items-center gap-2 text-[11px]"
+                  style={{ color: 'var(--text-3)' }}
+                >
+                  <PriorityPill priority="URGENT" />
+                  <span style={{ color: 'var(--danger-text)' }}>Hier</span>
+                  <span className="ml-auto">
+                    <Avatar name="Rachid Kaci" size={20} />
+                  </span>
+                </div>
+              </article>
+              <article
+                className="tf-card"
+                style={{ '--prio': 'var(--warning)' } as React.CSSProperties}
+              >
+                <p className="text-[13px] font-medium">Refonte du header global</p>
+                <div
+                  className="mt-2.5 flex items-center gap-2 text-[11px]"
+                  style={{ color: 'var(--text-3)' }}
+                >
+                  <PriorityPill priority="HIGH" />
+                  <span>5 août</span>
+                  <span className="ml-auto">
+                    <Avatar name="Maxime Lefebvre" size={20} />
+                  </span>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div>
+            <div className="tf-col-head">
+              <span className="tf-col-name">Chargement</span>
+              <span className="tf-col-count">—</span>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {[0, 1].map((i) => (
+                <div key={i} className="tf-surface p-3.5">
+                  <div className="tf-skel mb-2 h-3.5 w-4/5" />
+                  <div className="tf-skel mb-3 h-3.5 w-3/5" />
+                  <div className="tf-skel h-4 w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        titre="Messages"
+        note="Une erreur dit ce qui s'est passé et comment en sortir. Jamais d'excuse, jamais de vague."
+      >
+        <div className="flex flex-col gap-3">
+          <Alert tone="danger">
+            Ce projet porte déjà une tâche de ce nom. Choisissez-en un autre.
+          </Alert>
+          <Alert tone="success">Les modifications sont enregistrées.</Alert>
+          <Alert tone="info">Les invitations partent dès que le projet a un nom.</Alert>
+        </div>
+      </Section>
+
+      <Section titre="Modale">
+        <Button variant="neutral" onClick={() => setOuverte(true)}>
+          Ouvrir la modale
+        </Button>
+        <Modal
+          open={ouverte}
+          onClose={() => setOuverte(false)}
+          title="Supprimer le projet"
+          subtitle="Cette action retire aussi les 18 tâches qu'il contient."
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setOuverte(false)}>
+                Annuler
+              </Button>
+              <Button variant="danger" onClick={() => setOuverte(false)}>
+                Supprimer
+              </Button>
+            </>
+          }
+        >
+          <p className="text-[14px]" style={{ color: 'var(--text-2)' }}>
+            Les membres perdront l&apos;accès immédiatement. Rien n&apos;est récupérable ensuite.
+          </p>
+        </Modal>
+      </Section>
+    </main>
   );
 }

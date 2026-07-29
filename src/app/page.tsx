@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Icon } from '@/components/glass/Icon';
-import { Mark } from '@/components/glass/AppShell';
-import { StatusPill, PriorityPill } from '@/components/glass/Pill';
-import { Avatar } from '@/components/glass/Avatar';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { Mark } from '@/components/ui/AppShell';
+import { StatusPill, PriorityPill } from '@/components/ui/Pill';
+import { Avatar } from '@/components/ui/Avatar';
 
 /**
  * Page d'accueil.
@@ -85,7 +85,7 @@ export default function HomePage() {
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 px-4 pt-4 sm:px-6">
-        <Surface as="nav" radius="full" panel className="mx-auto max-w-5xl">
+        <Surface as="nav" radius="full" className="mx-auto max-w-5xl">
           <div className="flex h-[58px] items-center gap-2 pl-3.5 pr-2.5">
             <Link href="/" className="flex shrink-0 items-center gap-2.5">
               <Mark size={30} />
@@ -120,19 +120,19 @@ export default function HomePage() {
           <p className="tf-eyebrow tf-in mb-7">Gestion de projet · Next.js · GraphQL · Prisma</p>
 
           <h1 className="tf-display mx-auto mb-7 max-w-4xl text-[clamp(2.7rem,8vw,5.4rem)]">
-            <span className="tf-mask">
+            <span >
               <span>Le tableau qui dit</span>
             </span>
-            <span className="tf-mask">
+            <span >
               <span style={{ animationDelay: '0.1s' }}>
-                la <em style={{ color: 'var(--color-aqua)' }}>vérité</em> sur le sprint.
+                la <em style={{ color: 'var(--accent-text)' }}>vérité</em> sur le sprint.
               </span>
             </span>
           </h1>
 
           <p
             className="tf-in mx-auto mb-10 max-w-xl text-[16.5px] leading-relaxed"
-            style={{ color: 'var(--color-haze)', animationDelay: '0.28s' }}
+            style={{ color: 'var(--text-2)', animationDelay: '0.28s' }}
           >
             Un kanban collaboratif où chaque déplacement compte vraiment, où les rôles sont
             appliqués côté serveur, et où l’avancement se lit sans ouvrir une seule tâche.
@@ -149,7 +149,7 @@ export default function HomePage() {
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="glass" size="lg">
+              <Button variant="neutral" size="lg">
                 Se connecter
               </Button>
             </Link>
@@ -158,7 +158,7 @@ export default function HomePage() {
 
         {/* ── Le tableau, en vrai ──────────────────────────────── */}
         <section id="tableau" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-28 sm:px-8">
-          <Surface radius="xl" panel distort lift="lg" className="p-4 sm:p-6">
+          <Surface radius="xl" lift="lg" className="p-4 sm:p-6">
             <div className="mb-5 flex items-center gap-2.5 px-1">
               <span className="flex gap-1.5" aria-hidden="true">
                 <Dot color="#ff6b6b" />
@@ -166,7 +166,7 @@ export default function HomePage() {
                 <Dot color="#4fe0d5" />
               </span>
               <p className="tf-eyebrow">Refonte du site — Sprint 24</p>
-              <span className="tf-num ml-auto text-[12px]" style={{ color: 'var(--color-mute)' }}>
+              <span className="tf-num ml-auto text-[12px]" style={{ color: 'var(--text-3)' }}>
                 5 tâches · 1 terminée
               </span>
             </div>
@@ -176,13 +176,13 @@ export default function HomePage() {
                 <div key={col.statut} className="flex flex-col gap-2.5">
                   <div className="flex items-center justify-between px-1 pb-1">
                     <StatusPill status={col.statut} />
-                    <span className="tf-num text-[11px]" style={{ color: 'var(--color-mute)' }}>
+                    <span className="tf-num text-[11px]" style={{ color: 'var(--text-3)' }}>
                       {col.taches.length}
                     </span>
                   </div>
 
                   {col.taches.map((t) => (
-                    <Surface key={t.titre} radius="md" raised lift="md" specular className="p-3.5">
+                    <Surface key={t.titre} radius="md" lift="md" className="p-3.5">
                       <p className="mb-2.5 text-[13.5px] font-medium leading-snug">{t.titre}</p>
                       <div className="flex items-center justify-between gap-2">
                         <PriorityPill priority={t.priorite} />
@@ -202,19 +202,19 @@ export default function HomePage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             {CAPACITES.map((c) => (
-              <Surface key={c.titre} radius="lg" specular className="p-6">
+              <Surface key={c.titre} radius="lg" className="p-6">
                 <span
                   className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-[11px]"
                   style={{
                     background: 'rgba(79,224,213,0.1)',
-                    color: 'var(--color-aqua)',
+                    color: 'var(--accent-text)',
                     boxShadow: 'inset 0 0 0 1px rgba(79,224,213,0.22)',
                   }}
                 >
                   {c.icon}
                 </span>
                 <h3 className="mb-2 text-[15.5px] font-semibold tracking-[-0.015em]">{c.titre}</h3>
-                <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--color-haze)' }}>
+                <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
                   {c.texte}
                 </p>
               </Surface>
@@ -226,16 +226,16 @@ export default function HomePage() {
         <section id="roles" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-28 sm:px-8">
           <SectionTitle numero="02">Qui peut quoi</SectionTitle>
 
-          <Surface radius="xl" panel className="overflow-hidden">
+          <Surface radius="xl" className="overflow-hidden">
             <ul>
               {ROLES.map((r, i) => (
                 <li
                   key={r.nom}
                   className="flex flex-col gap-1 px-6 py-5 sm:flex-row sm:items-center sm:gap-8"
-                  style={{ borderTop: i === 0 ? undefined : '1px solid var(--rim)' }}
+                  style={{ borderTop: i === 0 ? undefined : '1px solid var(--border)' }}
                 >
                   <span className="w-36 shrink-0 text-[14.5px] font-semibold">{r.nom}</span>
-                  <span className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
+                  <span className="text-[13.5px]" style={{ color: 'var(--text-2)' }}>
                     {r.peut}
                   </span>
                 </li>
@@ -249,7 +249,7 @@ export default function HomePage() {
           <h2 className="tf-display mb-5 text-[clamp(1.9rem,5vw,3rem)]">
             Ouvrez votre premier tableau.
           </h2>
-          <p className="mx-auto mb-8 max-w-md text-[15px]" style={{ color: 'var(--color-haze)' }}>
+          <p className="mx-auto mb-8 max-w-md text-[15px]" style={{ color: 'var(--text-2)' }}>
             Gratuit, sans carte bancaire.
           </p>
           <Link href="/register">
@@ -264,22 +264,22 @@ export default function HomePage() {
       <footer className="px-5 pb-10 sm:px-8">
         <div
           className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 pt-8 sm:flex-row"
-          style={{ borderTop: '1px solid var(--rim)' }}
+          style={{ borderTop: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-2.5">
             <Mark size={24} />
-            <span className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
+            <span className="text-[13.5px]" style={{ color: 'var(--text-2)' }}>
               TaskFlow
             </span>
           </div>
           <nav className="flex flex-wrap items-center gap-5 text-[13px]">
-            <Link href="/tarifs" className="tf-link" style={{ color: 'var(--color-haze)' }}>
+            <Link href="/tarifs" className="tf-link" style={{ color: 'var(--text-2)' }}>
               Tarifs
             </Link>
-            <Link href="/a-propos" className="tf-link" style={{ color: 'var(--color-haze)' }}>
+            <Link href="/a-propos" className="tf-link" style={{ color: 'var(--text-2)' }}>
               À propos
             </Link>
-            <Link href="/login" className="tf-link" style={{ color: 'var(--color-haze)' }}>
+            <Link href="/login" className="tf-link" style={{ color: 'var(--text-2)' }}>
               Connexion
             </Link>
           </nav>
@@ -293,11 +293,11 @@ export default function HomePage() {
 function SectionTitle({ numero, children }: { numero: string; children: React.ReactNode }) {
   return (
     <div className="mb-10 flex items-baseline gap-3">
-      <span className="tf-num text-[12px]" style={{ color: 'var(--color-aqua)' }}>
+      <span className="tf-num text-[12px]" style={{ color: 'var(--accent-text)' }}>
         {numero}
       </span>
       <h2 className="tf-display text-[clamp(1.5rem,3.4vw,2.2rem)]">{children}</h2>
-      <span className="h-px flex-1" style={{ background: 'var(--rim)' }} />
+      <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
     </div>
   );
 }

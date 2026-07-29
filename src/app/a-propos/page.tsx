@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Mark } from '@/components/glass/AppShell';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Mark } from '@/components/ui/AppShell';
 
 export const metadata: Metadata = {
   title: 'À propos — TaskFlow',
@@ -62,17 +62,17 @@ export default function AProposPage() {
       <main className="mx-auto max-w-3xl pt-[10vh] pb-24">
         <p className="tf-eyebrow mb-6">À propos</p>
         <h1 className="tf-display mb-6 text-[clamp(2.2rem,6vw,3.6rem)]">
-          <span className="tf-mask">
+          <span >
             <span>Un outil de gestion,</span>
           </span>
-          <span className="tf-mask">
-            <span style={{ animationDelay: '0.1s', color: 'var(--color-aqua)' }}>
+          <span >
+            <span style={{ animationDelay: '0.1s', color: 'var(--accent-text)' }}>
               construit pour de vrai.
             </span>
           </span>
         </h1>
 
-        <p className="mb-14 max-w-xl text-[16px] leading-relaxed" style={{ color: 'var(--color-haze)' }}>
+        <p className="mb-14 max-w-xl text-[16px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
           TaskFlow est un projet personnel de Maxime Turquet. L’objectif n’était pas de
           concurrencer les outils existants, mais de construire une application complète
           en allant au bout de chaque sujet : l’authentification, les permissions, les
@@ -81,11 +81,11 @@ export default function AProposPage() {
 
         <section className="mb-14">
           <h2 className="tf-display mb-6 text-[1.4rem]">Les choix qui comptent</h2>
-          <div className="tf-cascade flex flex-col gap-3.5">
+          <div className=" flex flex-col gap-3.5">
             {CHOIX.map((c) => (
-              <Surface key={c.titre} radius="lg" specular className="p-6">
+              <Surface key={c.titre} radius="lg" className="p-6">
                 <h3 className="mb-2 text-[15px] font-semibold tracking-[-0.015em]">{c.titre}</h3>
-                <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--color-haze)' }}>
+                <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
                   {c.texte}
                 </p>
               </Surface>
@@ -95,16 +95,16 @@ export default function AProposPage() {
 
         <section>
           <h2 className="tf-display mb-6 text-[1.4rem]">La pile</h2>
-          <Surface radius="xl" panel className="overflow-hidden">
+          <Surface radius="xl" className="overflow-hidden">
             <ul>
               {PILE.map((p, i) => (
                 <li
                   key={p.quoi}
                   className="flex flex-col gap-1 px-6 py-4 sm:flex-row sm:items-baseline sm:gap-6"
-                  style={{ borderTop: i === 0 ? undefined : '1px solid var(--rim)' }}
+                  style={{ borderTop: i === 0 ? undefined : '1px solid var(--border)' }}
                 >
                   <span className="tf-num w-44 shrink-0 text-[13px]">{p.quoi}</span>
-                  <span className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
+                  <span className="text-[13.5px]" style={{ color: 'var(--text-2)' }}>
                     {p.pourquoi}
                   </span>
                 </li>

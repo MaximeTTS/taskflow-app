@@ -14,8 +14,7 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
  *
  * S'appuie sur le `<select>` natif plutôt que sur une liste reconstruite :
  * on hérite gratuitement de la navigation clavier, de la recherche par
- * frappe et du sélecteur natif sur mobile. Seule la flèche est remplacée,
- * celle du système ne s'accordant pas au verre.
+ * frappe et du sélecteur natif sur mobile. Seule la flèche est remplacée.
  */
 export function Select({ label, options, className = '', id, ...rest }: SelectProps) {
   const generated = useId();
@@ -28,10 +27,7 @@ export function Select({ label, options, className = '', id, ...rest }: SelectPr
           {label}
         </label>
       )}
-      <div className="tf-field g" style={{ borderRadius: 'var(--r-md)' }}>
-        <span className="g-refract" />
-        <span className="g-tint" />
-        <span className="g-rim" />
+      <div className="relative">
         <select id={selectId} className="tf-input tf-select" {...rest}>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
@@ -60,12 +56,7 @@ export function Textarea({ label, className = '', id, rows = 4, ...rest }: Texta
           {label}
         </label>
       )}
-      <div className="tf-field g" style={{ borderRadius: 'var(--r-md)' }}>
-        <span className="g-refract" />
-        <span className="g-tint" />
-        <span className="g-rim" />
-        <textarea id={areaId} rows={rows} className="tf-input tf-textarea" {...rest} />
-      </div>
+      <textarea id={areaId} rows={rows} className="tf-input tf-textarea" {...rest} />
     </div>
   );
 }

@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal } from '@/components/glass/Modal';
-import { Button, IconButton } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Select, Textarea } from '@/components/glass/Select';
-import { Alert } from '@/components/glass/Alert';
-import { Avatar } from '@/components/glass/Avatar';
-import { RolePill, STATUS, PRIORITY, STATUS_ORDER } from '@/components/glass/Pill';
-import { Icon } from '@/components/glass/Icon';
+import { Modal } from '@/components/ui/Modal';
+import { Button, IconButton } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { Select, Textarea } from '@/components/ui/Select';
+import { Alert } from '@/components/ui/Alert';
+import { Avatar } from '@/components/ui/Avatar';
+import { RolePill, STATUS, PRIORITY, STATUS_ORDER } from '@/components/ui/Pill';
+import { Icon } from '@/components/ui/Icon';
 import { ROLE_HIERARCHY } from '@/lib/role-utils';
 import type { Role } from '@/lib/role-utils';
 import type { Project } from '../_types';
@@ -174,7 +174,7 @@ export function NewTaskModal({
             onChange={(e) => setImages(Array.from(e.target.files ?? []))}
           />
           {images.length > 0 && (
-            <p className="mt-2 text-[12.5px]" style={{ color: 'var(--color-haze)' }}>
+            <p className="mt-2 text-[12.5px]" style={{ color: 'var(--text-2)' }}>
               {images.length} image(s) seront jointes après création.
             </p>
           )}
@@ -264,13 +264,13 @@ export function MembersModal({
                 Inviter
               </Button>
             </div>
-            <p className="text-[12.5px]" style={{ color: 'var(--color-mute)' }}>
+            <p className="text-[12.5px]" style={{ color: 'var(--text-3)' }}>
               La personne doit déjà avoir un compte TaskFlow.
             </p>
           </form>
         )}
 
-        <ul className="flex flex-col" style={{ borderTop: '1px solid var(--rim)' }}>
+        <ul className="flex flex-col" style={{ borderTop: '1px solid var(--border)' }}>
           {project.members.map((m) => {
             const nom = m.user.name || m.user.email;
             const moi = m.user.id === myUserId;
@@ -278,7 +278,7 @@ export function MembersModal({
               <li
                 key={m.id}
                 className="flex items-center gap-3 py-3"
-                style={{ borderBottom: '1px solid var(--rim)' }}
+                style={{ borderBottom: '1px solid var(--border)' }}
               >
                 <Avatar name={nom} avatar={m.user.avatar} size={36} />
 
@@ -286,12 +286,12 @@ export function MembersModal({
                   <p className="truncate text-[14px] font-medium">
                     {nom}
                     {moi && (
-                      <span className="ml-2 text-[12px]" style={{ color: 'var(--color-mute)' }}>
+                      <span className="ml-2 text-[12px]" style={{ color: 'var(--text-3)' }}>
                         vous
                       </span>
                     )}
                   </p>
-                  <p className="truncate text-[12.5px]" style={{ color: 'var(--color-mute)' }}>
+                  <p className="truncate text-[12.5px]" style={{ color: 'var(--text-3)' }}>
                     {m.user.email}
                   </p>
                 </div>
@@ -400,11 +400,11 @@ export function SettingsModal({
         />
 
         {isOwner && (
-          <div className="mt-2 pt-5" style={{ borderTop: '1px solid var(--rim)' }}>
-            <p className="mb-1.5 text-[14px] font-semibold" style={{ color: 'var(--color-rose)' }}>
+          <div className="mt-2 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+            <p className="mb-1.5 text-[14px] font-semibold" style={{ color: 'var(--danger-text)' }}>
               Supprimer le projet
             </p>
-            <p className="mb-4 text-[13px]" style={{ color: 'var(--color-haze)' }}>
+            <p className="mb-4 text-[13px]" style={{ color: 'var(--text-2)' }}>
               Toutes les tâches et les images seront supprimées. C’est irréversible.
             </p>
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { apolloClient } from '@/lib/apollo-client';
 import {
   GET_PROJECT,
+  TASKS_PAGE,
   UPDATE_TASK,
   CREATE_TASK,
   DELETE_TASK,
@@ -13,24 +14,70 @@ import {
   UPLOAD_IMAGE,
   DELETE_IMAGE,
 } from '../_graphql';
-import type { Project, Task } from '../_types';
+import type { Project, ProjectResponse, Task, TasksMeta } from '../_types';
 
 export function useProject(projectId: string) {
   const [project, setProject] = useState<Project | null>(null);
+  const [tasksMeta, setTasksMeta] = useState<TasksMeta>({ totalCount: 0, hasMore: false });
   const [loading, setLoading] = useState(true);
+  const [loadingMoreTasks, setLoadingMoreTasks] = useState(false);
 
+  /** Interroge le serveur et aplatit la page de tâches. */
+  const load = async (offset: number) => {
+    const { data } = await apolloClient.query({
+      query: GET_PROJECT,
+      variables: { id: projectId, limit: TASKS_PAGE, offset },
+      fetchPolicy: 'network-only',
+    });
+
+    const brut = (data as { project: ProjectResponse | null }).project;
+    if (!brut) return null;
+
+    return {
+      projet: { ...brut, tasks: brut.tasks.items } satisfies Project,
+      meta: { totalCount: brut.tasks.totalCount, hasMore: brut.tasks.hasMore },
+    };
+  };
+
+  /**
+   * Recharge le projet depuis la première page.
+   *
+   * Les pages supplémentaires déjà chargées sont perdues, et c'est le choix le
+   * plus sûr : après une création ou une suppression, les positions ont
+   * changé, et recoller des pages obtenues avant la mutation afficherait des
+   * doublons ou des trous. Repartir du début donne toujours une vue juste.
+   */
   const fetchProject = async () => {
     try {
-      const { data } = await apolloClient.query({
-        query: GET_PROJECT,
-        variables: { id: projectId },
-        fetchPolicy: 'network-only',
-      });
-      setProject((data as { project: Project }).project);
+      const résultat = await load(0);
+      if (!résultat) return;
+
+      setProject(résultat.projet);
+      setTasksMeta(résultat.meta);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** Ajoute la page suivante de tâches à celles déjà affichées. */
+  const fetchMoreTasks = async () => {
+    if (!project || !tasksMeta.hasMore) return;
+
+    setLoadingMoreTasks(true);
+    try {
+      const résultat = await load(project.tasks.length);
+      if (!résultat) return;
+
+      setProject((prev) =>
+        prev ? { ...prev, tasks: [...prev.tasks, ...résultat.projet.tasks] } : résultat.projet,
+      );
+      setTasksMeta(résultat.meta);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMoreTasks(false);
     }
   };
 
@@ -90,14 +137,13 @@ export function useProject(projectId: string) {
       mutation: UPLOAD_IMAGE,
       variables: { taskId: selectedTask.id, base64Image: base64 },
     });
-    const { data } = await apolloClient.query({
-      query: GET_PROJECT,
-      variables: { id: projectId },
-      fetchPolicy: 'network-only',
-    });
-    const up = (data as { project: Project }).project;
-    const ut = up.tasks.find((t) => t.id === selectedTask.id);
-    if (ut) onDone(ut, up);
+
+    const résultat = await load(0);
+    if (!résultat) return;
+
+    setTasksMeta(résultat.meta);
+    const ut = résultat.projet.tasks.find((t) => t.id === selectedTask.id);
+    if (ut) onDone(ut, résultat.projet);
   };
 
   const handleDeleteImage = async (
@@ -106,14 +152,13 @@ export function useProject(projectId: string) {
     onDone: (task: Task | undefined, project: Project) => void,
   ) => {
     await apolloClient.mutate({ mutation: DELETE_IMAGE, variables: { imageId } });
-    const { data } = await apolloClient.query({
-      query: GET_PROJECT,
-      variables: { id: projectId },
-      fetchPolicy: 'network-only',
-    });
-    const up = (data as { project: Project }).project;
-    const ut = up.tasks.find((t) => t.id === selectedTaskId);
-    onDone(ut, up);
+
+    const résultat = await load(0);
+    if (!résultat) return;
+
+    setTasksMeta(résultat.meta);
+    const ut = résultat.projet.tasks.find((t) => t.id === selectedTaskId);
+    onDone(ut, résultat.projet);
   };
 
   const handleAddMember = async (email: string, role: string) => {
@@ -155,6 +200,9 @@ export function useProject(projectId: string) {
     project,
     setProject,
     loading,
+    tasksMeta,
+    loadingMoreTasks,
+    fetchMoreTasks,
     fetchProject,
     handleUpdateTask,
     handleDeleteTask,

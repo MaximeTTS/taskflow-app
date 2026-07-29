@@ -16,14 +16,14 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { AppShell } from '@/components/glass/AppShell';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Alert } from '@/components/glass/Alert';
-import { Icon } from '@/components/glass/Icon';
-import { AvatarStack } from '@/components/glass/Avatar';
-import { STATUS, STATUS_ORDER } from '@/components/glass/Pill';
-import type { TaskStatus } from '@/components/glass/Pill';
+import { AppShell } from '@/components/ui/AppShell';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Alert } from '@/components/ui/Alert';
+import { Icon } from '@/components/ui/Icon';
+import { AvatarStack } from '@/components/ui/Avatar';
+import { STATUS, STATUS_ORDER } from '@/components/ui/Pill';
+import type { TaskStatus } from '@/components/ui/Pill';
 import { ROLE_HIERARCHY } from '@/lib/role-utils';
 import type { Role } from '@/lib/role-utils';
 import { useProject } from './_hooks/useProject';
@@ -41,6 +41,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const {
     project,
     loading,
+    tasksMeta,
+    loadingMoreTasks,
+    fetchMoreTasks,
     fetchProject,
     handleUpdateTask,
     handleDeleteTask,
@@ -142,12 +145,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="min-w-0">
           <p className="tf-eyebrow mb-3">Tableau</p>
           <h1 className="tf-display mb-2 text-[clamp(1.8rem,4.5vw,2.6rem)]">
-            <span className="tf-mask">
+            <span >
               <span>{project.name}</span>
             </span>
           </h1>
           {project.description && (
-            <p className="max-w-xl text-[14px]" style={{ color: 'var(--color-haze)' }}>
+            <p className="max-w-xl text-[14px]" style={{ color: 'var(--text-2)' }}>
               {project.description}
             </p>
           )}
@@ -170,7 +173,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </button>
 
           {isAdmin && (
-            <Button variant="glass" onClick={() => setSettingsOpen(true)}>
+            <Button variant="neutral" onClick={() => setSettingsOpen(true)}>
               Réglages
             </Button>
           )}
@@ -203,7 +206,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             data-active={mobileColumn === s ? 'true' : undefined}
           >
             {STATUS[s].label}
-            <span className="tf-num text-[11px]" style={{ color: 'var(--color-mute)' }}>
+            <span className="tf-num text-[11px]" style={{ color: 'var(--text-3)' }}>
               {byStatus.get(s)?.length ?? 0}
             </span>
           </button>
@@ -237,6 +240,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           )}
         </DragOverlay>
       </DndContext>
+
+      {/* Les tâches sont chargées par pages : le dire explicitement évite de
+          croire que le tableau est complet alors qu'il ne l'est pas. */}
+      {tasksMeta.hasMore && (
+        <div className="mt-7 flex flex-col items-center gap-2.5">
+          <p className="tf-num text-[12px]" style={{ color: 'var(--text-3)' }}>
+            {project.tasks.length} tâches affichées sur {tasksMeta.totalCount}
+          </p>
+          <Button variant="ghost" loading={loadingMoreTasks} onClick={() => void fetchMoreTasks()}>
+            Charger plus de tâches
+          </Button>
+        </div>
+      )}
 
       {selectedTask && (
         <TaskModal
@@ -318,20 +334,20 @@ function Column({
           <span className="tf-dot" />
           {meta.label}
         </span>
-        <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
+        <span className="tf-num text-[12px]" style={{ color: 'var(--text-3)' }}>
           {tasks.length}
         </span>
       </div>
 
       <div
-        className="tf-column flex min-h-[180px] flex-1 flex-col gap-2.5 rounded-[var(--r-lg)] p-2.5 transition-colors duration-200"
+        className="tf-column flex min-h-[180px] flex-1 flex-col gap-2.5 rounded-[var(--r-2)] p-2.5 transition-colors duration-200"
         style={{
           // La colonne s'éclaire au survol d'un glissement : le retour doit
           // dire où la carte va tomber.
           background: isOver ? 'rgba(79,224,213,0.07)' : 'rgba(255,255,255,0.018)',
           boxShadow: isOver
             ? 'inset 0 0 0 1px rgba(79,224,213,0.35)'
-            : 'inset 0 0 0 1px var(--rim)',
+            : 'inset 0 0 0 1px var(--border)',
         }}
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -343,7 +359,7 @@ function Column({
         {tasks.length === 0 && (
           <p
             className="flex flex-1 items-center justify-center text-[12.5px]"
-            style={{ color: 'var(--color-mute)' }}
+            style={{ color: 'var(--text-3)' }}
           >
             Rien ici.
           </p>

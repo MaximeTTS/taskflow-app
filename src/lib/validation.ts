@@ -18,13 +18,15 @@ export class ValidationError extends Error {
 /** Longueur maximale d'une adresse email (RFC 5321). */
 const EMAIL_MAX = 254;
 
-/**
- * bcrypt ne prend en compte que les 72 premiers octets : au-delà, deux mots
- * de passe différents produisent le même hash. On refuse plutôt que de
- * tronquer silencieusement.
- */
-export const PASSWORD_MIN = 10;
-export const PASSWORD_MAX_BYTES = 72;
+// La robustesse des mots de passe vit dans son propre module : elle n'a rien
+// de commun avec la validation de forme, et la page d'inscription l'importe
+// seule pour donner un retour immédiat. Réexporté ici pour que les appelants
+// existants n'aient pas à connaître ce découpage.
+import { checkPassword, PASSWORD_MIN, PASSWORD_MAX_BYTES } from '@/lib/password-strength';
+import type { PasswordContext } from '@/lib/password-strength';
+
+export { checkPassword, PASSWORD_MIN, PASSWORD_MAX_BYTES };
+export type { PasswordContext, PasswordVerdict } from '@/lib/password-strength';
 
 /** Volontairement stricte : une seule arobase, un domaine avec point, pas d'espace. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
@@ -46,17 +48,18 @@ export function assertValidEmail(email: string): void {
   }
 }
 
-export function assertValidPassword(password: string): void {
-  if (password.length < PASSWORD_MIN) {
-    throw new ValidationError(
-      `Le mot de passe doit contenir au moins ${PASSWORD_MIN} caractères`,
-    );
-  }
-  const bytes = Buffer.byteLength(password, 'utf8');
-  if (bytes > PASSWORD_MAX_BYTES) {
-    throw new ValidationError(
-      `Le mot de passe est trop long (maximum ${PASSWORD_MAX_BYTES} octets)`,
-    );
+/**
+ * Refuse un mot de passe trop facile à deviner.
+ *
+ * `context` porte l'email et le nom du compte concerné : un mot de passe qui
+ * les reprend est le premier essai d'un attaquant. L'omettre reste possible —
+ * les autres contrôles s'appliquent — mais tous les appelants qui connaissent
+ * le compte doivent le fournir.
+ */
+export function assertValidPassword(password: string, context: PasswordContext = {}): void {
+  const verdict = checkPassword(password, context);
+  if (!verdict.ok) {
+    throw new ValidationError(verdict.reason);
   }
 }
 

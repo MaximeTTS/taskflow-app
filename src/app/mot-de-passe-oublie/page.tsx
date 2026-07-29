@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AuthShell } from '@/components/glass/AuthShell';
-import { Button } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Alert } from '@/components/glass/Alert';
+import { AuthShell } from '@/components/ui/AuthShell';
+import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { Alert } from '@/components/ui/Alert';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
             d’être envoyé. Il expire dans 30 minutes.
           </Alert>
 
-          <p className="text-[13.5px]" style={{ color: 'var(--color-haze)' }}>
+          <p className="text-[13.5px]" style={{ color: 'var(--text-2)' }}>
             Rien reçu ? Vérifiez vos indésirables, puis{' '}
             <button
               type="button"
@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
           </p>
 
           <Link href="/login">
-            <Button variant="glass" block>
+            <Button variant="neutral" block>
               Retour à la connexion
             </Button>
           </Link>

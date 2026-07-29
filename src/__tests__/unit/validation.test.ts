@@ -34,27 +34,35 @@ describe('assertValidEmail', () => {
   });
 });
 
+// Le detail des regles de robustesse est couvert par password-strength.test.ts.
+// Ici on verifie seulement que la validation les applique et les traduit en
+// ValidationError, y compris le contexte du compte.
 describe('assertValidPassword', () => {
-  it('accepte un mot de passe de 10 caractères ou plus', () => {
-    expect(() => assertValidPassword('motdepasse1')).not.toThrow();
+  it('accepte un mot de passe solide', () => {
+    expect(() => assertValidPassword('fjord-lampe-27')).not.toThrow();
   });
 
   it('rejette un mot de passe trop court', () => {
     expect(() => assertValidPassword('court')).toThrow(ValidationError);
-    expect(() => assertValidPassword('123456789')).toThrow(ValidationError);
   });
 
   it('rejette un mot de passe au-dela de la limite bcrypt de 72 octets', () => {
-    expect(() => assertValidPassword('a'.repeat(73))).toThrow(ValidationError);
+    expect(() => assertValidPassword(`fjord-lampe-${'x'.repeat(70)}`)).toThrow(ValidationError);
   });
 
   it('compte les octets et non les caracteres pour la limite bcrypt', () => {
     // 'é' fait 2 octets en UTF-8 : 40 caracteres = 80 octets, au-dela de 72.
-    expect(() => assertValidPassword('é'.repeat(40))).toThrow(ValidationError);
+    expect(() => assertValidPassword(`fjord-${'é'.repeat(40)}`)).toThrow(ValidationError);
   });
 
   it('rejette une valeur vide', () => {
     expect(() => assertValidPassword('')).toThrow(ValidationError);
+  });
+
+  it('rejette un mot de passe qui reprend le compte', () => {
+    expect(() =>
+      assertValidPassword('maxime-fjord-27', { email: 'maxime@example.com' }),
+    ).toThrow(ValidationError);
   });
 });
 

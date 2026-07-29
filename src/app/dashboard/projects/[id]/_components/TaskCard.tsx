@@ -3,10 +3,10 @@
 import Image from 'next/image';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Avatar } from '@/components/glass/Avatar';
-import { PriorityPill } from '@/components/glass/Pill';
-import type { Priority } from '@/components/glass/Pill';
-import { Icon } from '@/components/glass/Icon';
+import { Avatar } from '@/components/ui/Avatar';
+import { PriorityPill } from '@/components/ui/Pill';
+import type { Priority } from '@/components/ui/Pill';
+import { Icon } from '@/components/ui/Icon';
 import type { Task } from '../_types';
 
 /** Nombre de jours restants avant l'échéance. Négatif si dépassée. */
@@ -29,18 +29,18 @@ function DueBadge({ dueDate }: { dueDate: string }) {
 
   const { texte, couleur } =
     reste < 0
-      ? { texte: `En retard de ${Math.abs(reste)} j`, couleur: 'var(--color-rose)' }
+      ? { texte: `En retard de ${Math.abs(reste)} j`, couleur: 'var(--danger-text)' }
       : reste === 0
-        ? { texte: "Aujourd'hui", couleur: 'var(--color-rose)' }
+        ? { texte: "Aujourd'hui", couleur: 'var(--danger-text)' }
         : reste === 1
-          ? { texte: 'Demain', couleur: 'var(--color-amber)' }
+          ? { texte: 'Demain', couleur: 'var(--warning-text)' }
           : reste <= 7
-            ? { texte: `Dans ${reste} j`, couleur: 'var(--color-amber)' }
+            ? { texte: `Dans ${reste} j`, couleur: 'var(--warning-text)' }
             : {
                 texte: new Date(
                   /^\d+$/.test(dueDate) ? Number(dueDate) : dueDate,
                 ).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-                couleur: 'var(--color-mute)',
+                couleur: 'var(--text-3)',
               };
 
   return (
@@ -66,7 +66,7 @@ export function TaskCard({ task, onOpen }: { task: Task; onOpen: (task: Task) =>
       }}
       {...attributes}
       {...listeners}
-      className="tf-task g g-raised g-lift touch-none"
+      className="tf-card touch-none"
     >
       <span className="g-refract" />
       <span className="g-tint" />
@@ -91,13 +91,13 @@ export function TaskCard({ task, onOpen }: { task: Task; onOpen: (task: Task) =>
                 height={44}
                 sizes="44px"
                 className="h-11 w-11 rounded-[8px] object-cover"
-                style={{ boxShadow: 'inset 0 0 0 1px var(--rim)' }}
+                style={{ boxShadow: 'inset 0 0 0 1px var(--border)' }}
               />
             ))}
             {task.images.length > 3 && (
               <span
                 className="tf-num flex h-11 w-11 items-center justify-center rounded-[8px] text-[11px]"
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-mute)' }}
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-3)' }}
               >
                 +{task.images.length - 3}
               </span>
@@ -111,7 +111,7 @@ export function TaskCard({ task, onOpen }: { task: Task; onOpen: (task: Task) =>
         </div>
 
         {task.dueDate && (
-          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--rim)' }}>
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border)' }}>
             <DueBadge dueDate={task.dueDate} />
           </div>
         )}

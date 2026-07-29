@@ -4,6 +4,11 @@ import { requireProjectRole, canAssignRole, canManageMember } from '@/lib/permis
 import type { Role } from '@/lib/permissions';
 import { revokeAllSessions } from '@/lib/session';
 import { assertValidImageUpload } from '@/lib/upload-validation';
+import { pageBounds, toPage } from '@/lib/pagination';
+import type { PageArgs } from '@/lib/pagination';
+import { readAudit, recordAudit } from '@/lib/audit';
+import { issueVerificationToken } from '@/lib/email-verification';
+import { sendAddressTakenNotice, sendVerificationMail } from '@/lib/account-mail';
 import {
   assertValidEmail,
   assertLength,
@@ -47,45 +52,109 @@ async function purgeCloudinary(publicIds: string[]): Promise<void> {
 
 /**
  * Forme d'un projet tel que renvoyé par les resolvers de Query : les
- * compteurs et les tâches ne sont présents que si la requête parente les a
- * déjà chargés.
+ * compteurs ne sont présents que si la requête parente les a déjà chargés.
  */
 type ProjectParent = {
   id: string;
-  tasks?: unknown[];
   taskCount?: number;
   completedTaskCount?: number;
 };
 
+/** Nombre de lignes rendues par défaut, par liste. */
+const DEFAULTS = {
+  projects: 24,
+  tasks: 50,
+  users: 50,
+  projectTasks: 100,
+  audit: 50,
+} as const;
+
+/** Sérialise les détails d'un événement d'audit pour le champ 'details'. */
+function auditDetails(metadata: unknown): string | null {
+  if (metadata === null || metadata === undefined) return null;
+  return JSON.stringify(metadata);
+}
+
 export const resolvers = {
+  User: {
+    emailVerified: (parent: { emailVerifiedAt?: Date | null }) =>
+      Boolean(parent.emailVerifiedAt),
+
+    /**
+     * Adresse en attente de confirmation.
+     *
+     * Rendue au seul titulaire du compte. Sur un autre utilisateur, ce champ
+     * révélerait une démarche en cours — et l'adresse visée — à quiconque
+     * partage un projet avec lui.
+     */
+    pendingEmail: async (
+      parent: { id: string; email: string },
+      _args: unknown,
+      context: Context,
+    ) => {
+      if (!context.user || context.user.id !== parent.id) return null;
+
+      const token = await prisma.emailVerificationToken.findFirst({
+        where: {
+          userId: parent.id,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { email: true },
+      });
+
+      // Le jeton d'une inscription vise l'adresse déjà portée par le compte :
+      // ce n'est pas un changement en attente, il n'y a rien à signaler.
+      if (!token || token.email === parent.email) return null;
+      return token.email;
+    },
+  },
+
   /**
    * Résolveurs de champ, qui gardent le type cohérent quelle que soit la
    * requête d'origine : `projects` fournit les compteurs sans les tâches,
-   * `project(id)` fournit les tâches sans les compteurs. Chacun se contente
-   * de ce qui est déjà chargé et ne va en base qu'en dernier recours.
+   * `project(id)` charge les tâches à la demande. Chacun se contente de ce qui
+   * est déjà chargé et ne va en base qu'en dernier recours.
    */
   Project: {
-    tasks: async (parent: ProjectParent) => {
-      if (parent.tasks) return parent.tasks;
-      return prisma.task.findMany({
-        where: { projectId: parent.id },
-        include: { assignee: true, creator: true, images: true },
-      });
+    /**
+     * Tâches du projet, paginées.
+     *
+     * Elles étaient toutes chargées avec le projet. Sur un projet fourni,
+     * c'est une lenteur ; sur un projet gonflé à dessein, c'est un levier de
+     * déni de service — et il suffit d'être MEMBER pour créer des tâches.
+     */
+    tasks: async (parent: ProjectParent, args: PageArgs) => {
+      const { take, skip } = pageBounds(args, DEFAULTS.projectTasks);
+
+      const [items, totalCount] = await Promise.all([
+        prisma.task.findMany({
+          where: { projectId: parent.id },
+          include: { assignee: true, creator: true, images: true },
+          orderBy: { createdAt: 'asc' },
+          take,
+          skip,
+        }),
+        prisma.task.count({ where: { projectId: parent.id } }),
+      ]);
+
+      return toPage(items, totalCount, skip);
     },
 
     taskCount: async (parent: ProjectParent) => {
       if (typeof parent.taskCount === 'number') return parent.taskCount;
-      if (Array.isArray(parent.tasks)) return parent.tasks.length;
       return prisma.task.count({ where: { projectId: parent.id } });
     },
 
     completedTaskCount: async (parent: ProjectParent) => {
       if (typeof parent.completedTaskCount === 'number') return parent.completedTaskCount;
-      if (Array.isArray(parent.tasks)) {
-        return (parent.tasks as { status?: string }[]).filter((t) => t.status === 'DONE').length;
-      }
       return prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
     },
+  },
+
+  AuditEvent: {
+    details: (parent: { metadata?: unknown }) => auditDetails(parent.metadata),
   },
 
   Query: {
@@ -101,19 +170,26 @@ export const resolvers = {
      * Cette requête était publique et sans authentification : elle permettait
      * à un anonyme de récupérer l'email et le nom de tous les comptes.
      */
-    users: async (_: unknown, __: unknown, context: Context) => {
+    users: async (_: unknown, args: PageArgs, context: Context) => {
       const user = requireUser(context);
-      return prisma.user.findMany({
-        where: {
-          memberships: {
-            some: {
-              project: {
-                members: { some: { userId: user.id } },
-              },
+      const { take, skip } = pageBounds(args, DEFAULTS.users);
+
+      const where = {
+        memberships: {
+          some: {
+            project: {
+              members: { some: { userId: user.id } },
             },
           },
         },
-      });
+      };
+
+      const [items, totalCount] = await Promise.all([
+        prisma.user.findMany({ where, orderBy: { createdAt: 'asc' }, take, skip }),
+        prisma.user.count({ where }),
+      ]);
+
+      return toPage(items, totalCount, skip);
     },
 
     user: async (_: unknown, args: { id: string }, context: Context) => {
@@ -138,23 +214,27 @@ export const resolvers = {
       });
     },
 
-    projects: async (_: unknown, __: unknown, context: Context) => {
+    projects: async (_: unknown, args: PageArgs, context: Context) => {
       const user = requireUser(context);
+      const { take, skip } = pageBounds(args, DEFAULTS.projects);
 
-      const projects = await prisma.project.findMany({
-        where: {
-          members: {
-            some: { userId: user.id },
+      const where = { members: { some: { userId: user.id } } };
+
+      const [projects, totalCount] = await Promise.all([
+        prisma.project.findMany({
+          where,
+          include: {
+            owner: true,
+            members: { include: { user: true } },
           },
-        },
-        include: {
-          owner: true,
-          members: { include: { user: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          orderBy: { createdAt: 'desc' },
+          take,
+          skip,
+        }),
+        prisma.project.count({ where }),
+      ]);
 
-      if (projects.length === 0) return [];
+      if (projects.length === 0) return toPage([], totalCount, skip);
 
       // La version precedente incluait `tasks: true`, chargeant toutes les
       // taches de tous les projets uniquement pour en afficher le nombre.
@@ -174,7 +254,7 @@ export const resolvers = {
         totals.set(row.projectId, entry);
       }
 
-      return projects.map((project) => {
+      const items = projects.map((project) => {
         const counts = totals.get(project.id) ?? { total: 0, done: 0 };
         return {
           ...project,
@@ -182,37 +262,43 @@ export const resolvers = {
           completedTaskCount: counts.done,
         };
       });
+
+      return toPage(items, totalCount, skip);
     },
 
     project: async (_: unknown, args: { id: string }, context: Context) => {
       const user = requireUser(context);
       await requireProjectRole(user.id, args.id, 'VIEWER');
+      // Les tâches ne sont plus incluses ici : le résolveur de champ
+      // `Project.tasks` s'en charge, borné, et n'est interrogé que si la
+      // requête les demande.
       return prisma.project.findUnique({
         where: { id: args.id },
         include: {
           owner: true,
           members: { include: { user: true } },
-          tasks: {
-            include: {
-              assignee: true,
-              creator: true,
-              images: true,
-            },
-          },
         },
       });
     },
 
-    tasks: async (_: unknown, __: unknown, context: Context) => {
+    tasks: async (_: unknown, args: PageArgs, context: Context) => {
       const user = requireUser(context);
-      return prisma.task.findMany({
-        where: { creatorId: user.id },
-        include: {
-          project: true,
-          assignee: true,
-          creator: true,
-        },
-      });
+      const { take, skip } = pageBounds(args, DEFAULTS.tasks);
+
+      const where = { creatorId: user.id };
+
+      const [items, totalCount] = await Promise.all([
+        prisma.task.findMany({
+          where,
+          include: { project: true, assignee: true, creator: true },
+          orderBy: { createdAt: 'desc' },
+          take,
+          skip,
+        }),
+        prisma.task.count({ where }),
+      ]);
+
+      return toPage(items, totalCount, skip);
     },
 
     task: async (_: unknown, args: { id: string }, context: Context) => {
@@ -230,6 +316,31 @@ export const resolvers = {
       await requireProjectRole(user.id, task.projectId, 'VIEWER');
       return task;
     },
+
+    /**
+     * Historique d'un projet.
+     *
+     * Réservé aux ADMIN : le journal dit qui a fait entrer ou sortir qui, ce
+     * qui reste une information sur les personnes. Un VIEWER n'a pas à la lire.
+     */
+    projectAuditLog: async (
+      _: unknown,
+      args: { projectId: string } & PageArgs,
+      context: Context,
+    ) => {
+      const user = requireUser(context);
+      await requireProjectRole(user.id, args.projectId, 'ADMIN');
+
+      const { take, skip } = pageBounds(args, DEFAULTS.audit);
+      return readAudit('project', args.projectId, take, skip);
+    },
+
+    /** Historique de son propre compte. Nul besoin d'autre garde. */
+    accountAuditLog: async (_: unknown, args: PageArgs, context: Context) => {
+      const user = requireUser(context);
+      const { take, skip } = pageBounds(args, DEFAULTS.audit);
+      return readAudit('user', user.id, take, skip);
+    },
   },
 
   Mutation: {
@@ -237,6 +348,24 @@ export const resolvers = {
     // cookie httpOnly demande une réponse HTTP que les resolvers ne
     // contrôlent pas.
 
+    /**
+     * Met à jour le profil.
+     *
+     * Deux corrections par rapport à la version précédente.
+     *
+     * **L'adresse n'est plus appliquée directement.** Elle l'était sur simple
+     * demande, sans preuve que la nouvelle boîte appartienne au demandeur :
+     * n'importe qui disposant d'une session ouverte pouvait déplacer le compte
+     * vers une adresse qu'il contrôle, puis en prendre possession par
+     * « mot de passe oublié ». Un lien de confirmation part désormais vers la
+     * nouvelle adresse, et le compte ne bouge qu'à son ouverture.
+     *
+     * **L'erreur « Cet email est déjà utilisé » a disparu.** Elle permettait de
+     * tester une liste d'adresses depuis un compte quelconque. La réponse est
+     * maintenant la même que l'adresse soit libre ou prise ; ce qui diffère est
+     * l'email envoyé — au titulaire légitime de l'adresse visée, pas au
+     * demandeur.
+     */
     updateProfile: async (
       _: unknown,
       args: { input: { name?: string; email?: string } },
@@ -246,24 +375,81 @@ export const resolvers = {
 
       assertLength(args.input.name, 'nom', LIMITS.userName);
 
-      let email: string | undefined;
-      if (args.input.email !== undefined) {
-        assertValidEmail(args.input.email);
-        email = normalizeEmail(args.input.email);
+      const before = await prisma.user.findUnique({ where: { id: currentUser.id } });
+      if (!before) throw new Error('Utilisateur introuvable');
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
-        if (existingUser && existingUser.id !== currentUser.id) {
-          throw new Error('Cet email est déjà utilisé');
-        }
+      // Le nom, lui, n'a rien à prouver : il s'applique tout de suite.
+      const user =
+        args.input.name === undefined
+          ? before
+          : await prisma.user.update({
+              where: { id: currentUser.id },
+              data: { name: args.input.name.trim() },
+            });
+
+      if (args.input.email === undefined) return user;
+
+      assertValidEmail(args.input.email);
+      const email = normalizeEmail(args.input.email);
+
+      // Demander son adresse actuelle n'est pas une demande de changement.
+      if (email === before.email) return user;
+
+      const occupant = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true, name: true },
+      });
+
+      if (occupant && occupant.id !== currentUser.id) {
+        // Adresse prise : on prévient son titulaire, et on rend exactement la
+        // même chose que dans le cas favorable. Le demandeur n'apprend rien.
+        await sendAddressTakenNotice({
+          to: email,
+          name: occupant.name,
+          origin: context.origin,
+        });
+        return user;
       }
 
-      return prisma.user.update({
-        where: { id: currentUser.id },
-        data: {
-          name: args.input.name?.trim() ?? undefined,
-          email,
-        },
+      const token = await issueVerificationToken(currentUser.id, email);
+      await sendVerificationMail({
+        to: email,
+        name: user.name,
+        origin: context.origin,
+        token,
+        isChange: true,
       });
+
+      void recordAudit({
+        action: 'EMAIL_CHANGE_REQUESTED',
+        actor: { id: currentUser.id, email: before.email },
+        targetType: 'user',
+        targetId: currentUser.id,
+        targetLabel: before.email,
+        metadata: { nouvelleAdresse: email },
+        ip: context.ip,
+      });
+
+      return user;
+    },
+
+    /**
+     * Annule un changement d'adresse en attente.
+     *
+     * Le geste utile après un « ce n'était pas moi » : le lien encore vivant
+     * cesse de l'être immédiatement, sans attendre ses 24 heures.
+     */
+    cancelEmailChange: async (_: unknown, __: unknown, context: Context) => {
+      const currentUser = requireUser(context);
+
+      await prisma.emailVerificationToken.updateMany({
+        where: { userId: currentUser.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      const user = await prisma.user.findUnique({ where: { id: currentUser.id } });
+      if (!user) throw new Error('Utilisateur introuvable');
+      return user;
     },
 
     changePassword: async (
@@ -272,8 +458,6 @@ export const resolvers = {
       context: Context,
     ) => {
       const currentUser = requireUser(context);
-
-      assertValidPassword(args.input.newPassword);
 
       const user = await prisma.user.findUnique({
         where: { id: currentUser.id },
@@ -285,6 +469,14 @@ export const resolvers = {
 
       if (!isValid) throw new Error('Mot de passe actuel incorrect');
 
+      // Après la vérification du mot de passe actuel, et pas avant : le
+      // contrôle de robustesse a besoin de l'email et du nom du compte, que
+      // seule la lecture en base fournit.
+      assertValidPassword(args.input.newPassword, {
+        email: user.email,
+        name: user.name ?? undefined,
+      });
+
       const hashedPassword = await hashPassword(args.input.newPassword);
 
       await prisma.user.update({
@@ -295,6 +487,15 @@ export const resolvers = {
       // Un changement de mot de passe doit déconnecter les autres appareils :
       // c'est le geste attendu quand on soupçonne un accès non désiré.
       await revokeAllSessions(currentUser.id);
+
+      void recordAudit({
+        action: 'PASSWORD_CHANGED',
+        actor: { id: user.id, email: user.email },
+        targetType: 'user',
+        targetId: user.id,
+        targetLabel: user.email,
+        ip: context.ip,
+      });
 
       return true;
     },
@@ -323,7 +524,7 @@ export const resolvers = {
       assertLength(args.input.name, 'nom du projet', LIMITS.projectName);
       assertLength(args.input.description, 'description', LIMITS.projectDescription);
 
-      return prisma.project.create({
+      const project = await prisma.project.create({
         data: {
           name: args.input.name.trim(),
           description: args.input.description?.trim(),
@@ -340,6 +541,17 @@ export const resolvers = {
           members: true,
         },
       });
+
+      void recordAudit({
+        action: 'PROJECT_CREATED',
+        actor: user,
+        targetType: 'project',
+        targetId: project.id,
+        targetLabel: project.name,
+        ip: context.ip,
+      });
+
+      return project;
     },
 
     updateProject: async (
@@ -379,8 +591,26 @@ export const resolvers = {
         select: { publicId: true },
       });
 
+      // Le nom est relevé avant la suppression : après, il n'existe plus, et
+      // un journal qui ne dit que « projet clx4… supprimé » ne répond pas à la
+      // question qu'on lui pose.
+      const projet = await prisma.project.findUnique({
+        where: { id: args.id },
+        select: { name: true, ownerId: true },
+      });
+
       await prisma.project.delete({
         where: { id: args.id },
+      });
+
+      void recordAudit({
+        action: 'PROJECT_DELETED',
+        actor: user,
+        targetType: 'project',
+        targetId: args.id,
+        targetLabel: projet?.name ?? null,
+        metadata: { proprietaire: projet?.ownerId ?? null },
+        ip: context.ip,
       });
 
       // Après la suppression en base : un échec côté Cloudinary ne doit pas
@@ -424,7 +654,7 @@ export const resolvers = {
         throw new Error('Cet utilisateur est déjà membre du projet');
       }
 
-      return prisma.projectMember.create({
+      const membre = await prisma.projectMember.create({
         data: {
           userId: userToAdd.id,
           projectId: args.projectId,
@@ -435,6 +665,18 @@ export const resolvers = {
           project: true,
         },
       });
+
+      void recordAudit({
+        action: 'MEMBER_ADDED',
+        actor: user,
+        targetType: 'project',
+        targetId: args.projectId,
+        targetLabel: membre.project.name,
+        metadata: { membre: userToAdd.email, role: args.role },
+        ip: context.ip,
+      });
+
+      return membre;
     },
 
     removeMember: async (
@@ -452,6 +694,7 @@ export const resolvers = {
             projectId: args.projectId,
           },
         },
+        include: { user: { select: { email: true } }, project: { select: { name: true } } },
       });
 
       if (!target) {
@@ -472,6 +715,16 @@ export const resolvers = {
         },
       });
 
+      void recordAudit({
+        action: 'MEMBER_REMOVED',
+        actor: user,
+        targetType: 'project',
+        targetId: args.projectId,
+        targetLabel: target.project.name,
+        metadata: { membre: target.user.email, roleRetire: target.role },
+        ip: context.ip,
+      });
+
       return true;
     },
 
@@ -490,6 +743,7 @@ export const resolvers = {
             projectId: args.projectId,
           },
         },
+        include: { user: { select: { email: true } } },
       });
 
       if (!target) {
@@ -505,7 +759,7 @@ export const resolvers = {
         throw new Error("Action non autorisée");
       }
 
-      return prisma.projectMember.update({
+      const membre = await prisma.projectMember.update({
         where: {
           userId_projectId: {
             userId: args.userId,
@@ -520,6 +774,25 @@ export const resolvers = {
           project: true,
         },
       });
+
+      // Le changement de rôle est l'exemple même de ce que le journal doit
+      // retenir : l'ancien rôle disparaît de la base, seule cette trace le
+      // conserve.
+      void recordAudit({
+        action: 'MEMBER_ROLE_CHANGED',
+        actor: user,
+        targetType: 'project',
+        targetId: args.projectId,
+        targetLabel: membre.project.name,
+        metadata: {
+          membre: target.user.email,
+          ancienRole: target.role,
+          nouveauRole: args.role,
+        },
+        ip: context.ip,
+      });
+
+      return membre;
     },
 
     createTask: async (

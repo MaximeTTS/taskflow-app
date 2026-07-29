@@ -1,26 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth-store';
-import type { User } from '@/store/auth-store';
-import { PASSWORD_MIN } from '@/lib/validation';
-import { AuthShell } from '@/components/glass/AuthShell';
-import { Button } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Alert } from '@/components/glass/Alert';
-import { AuthAside } from '@/components/glass/AuthAside';
+import Link from 'next/link';
+import { AuthShell } from '@/components/ui/AuthShell';
+import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { PasswordField, passwordAcceptable } from '@/components/ui/PasswordField';
+import { Alert } from '@/components/ui/Alert';
+import { AuthAside } from '@/components/ui/AuthAside';
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const { setUser } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const tooShort = password.length > 0 && password.length < PASSWORD_MIN;
+  const [envoye, setEnvoye] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,21 +29,49 @@ export default function RegisterPage() {
         body: JSON.stringify({ email, password, name }),
       });
 
-      const data = (await response.json()) as { user?: User; error?: string };
+      const data = (await response.json()) as { message?: string; error?: string };
 
-      if (!response.ok || !data.user) {
+      if (!response.ok) {
         setError(data.error ?? 'Une erreur est survenue');
         return;
       }
 
-      setUser(data.user);
-      router.push('/dashboard');
+      // Aucune redirection vers le tableau de bord : l'inscription ne connecte
+      // plus. Le compte n'est utilisable qu'une fois l'adresse confirmée, ce
+      // qui empêche de s'inscrire avec l'adresse de quelqu'un d'autre.
+      setEnvoye(data.message ?? '');
     } catch {
       setError('Impossible de joindre le serveur');
     } finally {
       setLoading(false);
     }
   };
+
+  if (envoye) {
+    return (
+      <AuthShell
+        title="Vérifiez votre boîte mail"
+        subtitle="Une dernière étape avant de commencer."
+        altPrompt="Déjà confirmé ?"
+        altLabel="Se connecter"
+        altHref="/login"
+        aside={<AuthAside />}
+      >
+        <div className="flex flex-col gap-5">
+          <Alert tone="success">{envoye}</Alert>
+          <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
+            Le lien expire dans 24 heures. S’il n’arrive pas, pensez à regarder dans les
+            indésirables — vous pourrez aussi en redemander un depuis la page de connexion.
+          </p>
+          <Link href="/login">
+            <Button variant="primary" size="lg" block>
+              Aller à la connexion
+            </Button>
+          </Link>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
@@ -80,22 +103,24 @@ export default function RegisterPage() {
           required
         />
 
-        <Field
+        <PasswordField
           label="Mot de passe"
-          type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
           placeholder="••••••••••"
-          autoComplete="new-password"
-          minLength={PASSWORD_MIN}
+          context={{ email, name }}
           required
-          // L'erreur n'apparaît qu'une fois la saisie commencée : signaler
-          // « trop court » sur un champ vide serait un reproche prématuré.
-          error={tooShort ? `Encore ${PASSWORD_MIN - password.length} caractère(s).` : undefined}
-          hint={`${PASSWORD_MIN} caractères minimum.`}
         />
 
-        <Button type="submit" variant="primary" size="lg" loading={loading} block className="mt-1">
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          loading={loading}
+          disabled={!passwordAcceptable(password, { email, name })}
+          block
+          className="mt-1"
+        >
           Créer mon compte
         </Button>
       </form>

@@ -6,43 +6,50 @@ import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { AppShell } from '@/components/glass/AppShell';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Textarea } from '@/components/glass/Select';
-import { Modal } from '@/components/glass/Modal';
-import { Alert } from '@/components/glass/Alert';
-import { Icon } from '@/components/glass/Icon';
-import { AvatarStack } from '@/components/glass/Avatar';
+import { AppShell } from '@/components/ui/AppShell';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { Textarea } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
+import { Alert } from '@/components/ui/Alert';
+import { Icon } from '@/components/ui/Icon';
+import { AvatarStack } from '@/components/ui/Avatar';
 
 const GET_PROJECTS = gql`
-  query GetProjects {
-    projects {
-      id
-      name
-      description
-      createdAt
-      taskCount
-      completedTaskCount
-      owner {
+  query GetProjects($limit: Int, $offset: Int) {
+    projects(limit: $limit, offset: $offset) {
+      totalCount
+      hasMore
+      items {
         id
         name
-        email
-      }
-      members {
-        id
-        role
-        user {
+        description
+        createdAt
+        taskCount
+        completedTaskCount
+        owner {
           id
           name
           email
-          avatar
+        }
+        members {
+          id
+          role
+          user {
+            id
+            name
+            email
+            avatar
+          }
         }
       }
     }
   }
 `;
+
+/** Projets chargés par page. Le serveur plafonne de toute façon à 100. */
+const PAGE = 24;
 
 const CREATE_PROJECT = gql`
   mutation CreateProject($input: CreateProjectInput!) {
@@ -75,6 +82,9 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
 
   const [projects, setProjects] = useState<Project[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -84,18 +94,34 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
-  const fetchProjects = useCallback(async () => {
+  /**
+   * Charge une page de projets.
+   *
+   * `offset` à 0 remplace la liste (premier chargement, ou rechargement après
+   * création) ; sinon la page est ajoutée à la suite.
+   */
+  const fetchProjects = useCallback(async (offset = 0) => {
     setLoadError('');
+    if (offset > 0) setLoadingMore(true);
+
     try {
       const { data } = await apolloClient.query({
         query: GET_PROJECTS,
+        variables: { limit: PAGE, offset },
         fetchPolicy: 'network-only',
       });
-      setProjects((data as { projects: Project[] }).projects);
+
+      const page = (data as { projects: { items: Project[]; totalCount: number; hasMore: boolean } })
+        .projects;
+
+      setProjects((précédents) => (offset === 0 ? page.items : [...précédents, ...page.items]));
+      setTotalCount(page.totalCount);
+      setHasMore(page.hasMore);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Chargement impossible');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
@@ -136,7 +162,7 @@ export default function DashboardPage() {
         <div>
           <p className="tf-eyebrow mb-3">Tableau de bord</p>
           <h1 className="tf-display text-[clamp(2rem,5vw,2.9rem)]">
-            <span className="tf-mask">
+            <span >
               <span>Bonjour{prenom ? `, ${prenom}` : ''}</span>
             </span>
           </h1>
@@ -150,17 +176,28 @@ export default function DashboardPage() {
 
       {/* Trois mesures, pas huit : un chiffre n'a de valeur que si on peut
           agir dessus. */}
-      <div className="tf-cascade mb-10 grid gap-3.5 sm:grid-cols-3">
-        <Stat label="Projets" value={projects.length} />
-        <Stat label="Tâches" value={totalTasks} sub={`${doneTasks} terminée(s)`} />
-        <Stat label="Personnes" value={people.size} />
+      {/* Trois mesures, pas huit : un chiffre n'a de valeur que si on peut
+          agir dessus. Le total des projets vient du serveur ; les deux autres
+          ne portent que sur les projets chargés, et le disent. */}
+      <div className=" mb-10 grid gap-3.5 sm:grid-cols-3">
+        <Stat label="Projets" value={totalCount} />
+        <Stat
+          label="Tâches"
+          value={totalTasks}
+          sub={hasMore ? `sur les ${projects.length} projets chargés` : `${doneTasks} terminée(s)`}
+        />
+        <Stat
+          label="Personnes"
+          value={people.size}
+          sub={hasMore ? 'sur les projets chargés' : undefined}
+        />
       </div>
 
       <div className="mb-5 flex items-baseline gap-3">
         <h2 className="tf-display text-[1.25rem]">Vos projets</h2>
-        <span className="h-px flex-1" style={{ background: 'var(--rim)' }} />
-        <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
-          {projects.length}
+        <span className="h-px flex-1" style={{ background: 'var(--border)' }} />
+        <span className="tf-num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {hasMore ? `${projects.length} / ${totalCount}` : projects.length}
         </span>
       </div>
 
@@ -175,9 +212,9 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : projects.length === 0 ? (
-        <Surface radius="xl" panel className="p-14 text-center">
+        <Surface radius="xl" className="p-14 text-center">
           <p className="tf-display mb-2.5 text-[1.35rem]">Aucun projet pour l’instant</p>
-          <p className="mx-auto mb-7 max-w-sm text-[14px]" style={{ color: 'var(--color-haze)' }}>
+          <p className="mx-auto mb-7 max-w-sm text-[14px]" style={{ color: 'var(--text-2)' }}>
             Un projet contient un tableau, des tâches et les personnes qui y travaillent.
           </p>
           <Button variant="primary" onClick={() => setModalOpen(true)}>
@@ -186,11 +223,27 @@ export default function DashboardPage() {
           </Button>
         </Surface>
       ) : (
-        <div className="tf-cascade grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} />
-          ))}
-        </div>
+        <>
+          <div className=" grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <Button
+                variant="ghost"
+                size="lg"
+                loading={loadingMore}
+                onClick={() => void fetchProjects(projects.length)}
+              >
+                Charger plus ({totalCount - projects.length} restant
+                {totalCount - projects.length > 1 ? 's' : ''})
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <Modal
@@ -241,11 +294,11 @@ export default function DashboardPage() {
 
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
-    <Surface radius="lg" specular className="p-5">
+    <Surface radius="lg" className="p-5">
       <p className="tf-eyebrow mb-2.5">{label}</p>
       <p className="tf-num text-[2.1rem] leading-none">{value}</p>
       {sub && (
-        <p className="mt-2 text-[12.5px]" style={{ color: 'var(--color-mute)' }}>
+        <p className="mt-2 text-[12.5px]" style={{ color: 'var(--text-3)' }}>
           {sub}
         </p>
       )}
@@ -259,20 +312,20 @@ function ProjectCard({ project }: { project: Project }) {
 
   return (
     <Link href={`/dashboard/projects/${project.id}`} className="group block">
-      <Surface radius="lg" specular lift="md" className="h-full p-6 transition-transform duration-300 group-hover:-translate-y-1">
+      <Surface radius="lg" lift="md" className="h-full p-6 transition-transform duration-300 group-hover:-translate-y-1">
         <h3 className="mb-1.5 text-[16px] font-semibold tracking-[-0.015em]">{project.name}</h3>
         <p
           className="mb-6 line-clamp-2 min-h-[2.6em] text-[13px] leading-relaxed"
-          style={{ color: 'var(--color-haze)' }}
+          style={{ color: 'var(--text-2)' }}
         >
           {project.description || 'Sans description.'}
         </p>
 
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
+          <span className="tf-num text-[12px]" style={{ color: 'var(--text-3)' }}>
             {completedTaskCount}/{taskCount} tâches
           </span>
-          <span className="tf-num text-[12px]" style={{ color: 'var(--color-aqua)' }}>
+          <span className="tf-num text-[12px]" style={{ color: 'var(--accent-text)' }}>
             {pct}%
           </span>
         </div>
@@ -292,7 +345,7 @@ function ProjectCard({ project }: { project: Project }) {
             className="block h-full rounded-full transition-[width] duration-500"
             style={{
               width: `${pct}%`,
-              background: 'linear-gradient(90deg, #2aa8b8, var(--color-aqua))',
+              background: 'linear-gradient(90deg, #2aa8b8, var(--accent-text))',
             }}
           />
         </div>
@@ -307,7 +360,7 @@ function ProjectCard({ project }: { project: Project }) {
           />
           <span
             className="inline-flex items-center gap-1.5 text-[12.5px] transition-transform duration-300 group-hover:translate-x-1"
-            style={{ color: 'var(--color-aqua)' }}
+            style={{ color: 'var(--accent-text)' }}
           >
             Ouvrir <Icon.Arrow size={14} />
           </span>

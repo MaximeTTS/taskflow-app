@@ -5,14 +5,15 @@ import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { PASSWORD_MIN } from '@/lib/validation';
-import { AppShell } from '@/components/glass/AppShell';
-import { Surface } from '@/components/glass/Surface';
-import { Button } from '@/components/glass/Button';
-import { Field } from '@/components/glass/Field';
-import { Alert } from '@/components/glass/Alert';
-import { Avatar } from '@/components/glass/Avatar';
-import { Icon } from '@/components/glass/Icon';
+import { checkPassword } from '@/lib/password-strength';
+import { AppShell } from '@/components/ui/AppShell';
+import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
+import { PasswordField } from '@/components/ui/PasswordField';
+import { Alert } from '@/components/ui/Alert';
+import { Avatar } from '@/components/ui/Avatar';
+import { Icon } from '@/components/ui/Icon';
 
 const GET_ME = gql`
   query Me {
@@ -21,6 +22,8 @@ const GET_ME = gql`
       name
       email
       avatar
+      emailVerified
+      pendingEmail
     }
   }
 `;
@@ -32,6 +35,21 @@ const UPDATE_PROFILE = gql`
       name
       email
       avatar
+      emailVerified
+      pendingEmail
+    }
+  }
+`;
+
+const CANCEL_EMAIL_CHANGE = gql`
+  mutation CancelEmailChange {
+    cancelEmailChange {
+      id
+      name
+      email
+      avatar
+      emailVerified
+      pendingEmail
     }
   }
 `;
@@ -53,7 +71,15 @@ const UPDATE_AVATAR = gql`
   }
 `;
 
-type Me = { id: string; name: string | null; email: string; avatar?: string | null };
+type Me = {
+  id: string;
+  name: string | null;
+  email: string;
+  avatar?: string | null;
+  emailVerified?: boolean;
+  /** Adresse demandée mais pas encore confirmée. */
+  pendingEmail?: string | null;
+};
 
 /** Doit rester aligné sur MAX_IMAGE_BYTES côté serveur. */
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -65,6 +91,9 @@ export default function ProfilePage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
+
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [annulation, setAnnulation] = useState(false);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
@@ -88,10 +117,28 @@ export default function ProfilePage() {
       setName(me.name ?? '');
       setEmail(me.email);
       setAvatar(me.avatar ?? null);
+      setPendingEmail(me.pendingEmail ?? null);
     } catch {
       setProfileError('Impossible de charger votre profil.');
     }
   }, []);
+
+  /** Abandonne un changement d'adresse : le lien encore valable cesse de l'être. */
+  const handleCancelEmailChange = async () => {
+    setProfileError('');
+    setAnnulation(true);
+    try {
+      const { data } = await apolloClient.mutate({ mutation: CANCEL_EMAIL_CHANGE });
+      const updated = (data as { cancelEmailChange: Me }).cancelEmailChange;
+      setPendingEmail(null);
+      setEmail(updated.email);
+      setProfileMessage('Changement d’adresse annulé.');
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : 'Annulation impossible');
+    } finally {
+      setAnnulation(false);
+    }
+  };
 
   useEffect(() => {
     if (authLoading || !isAuthenticated) return;
@@ -110,7 +157,20 @@ export default function ProfilePage() {
       });
       const updated = (data as { updateProfile: Me }).updateProfile;
       setUser({ ...updated, avatar: updated.avatar ?? null });
-      setProfileMessage('Profil enregistré.');
+      setPendingEmail(updated.pendingEmail ?? null);
+
+      // Le champ reprend l'adresse réellement portée par le compte : laisser
+      // la nouvelle affichée donnerait à croire qu'elle est déjà en vigueur.
+      setEmail(updated.email);
+
+      // Formulé au présent et non au passé : ce champ dit qu'une confirmation
+      // est en attente, pas qu'un email vient forcément de partir — enregistrer
+      // seulement son nom pendant qu'un changement dort ne déclenche aucun envoi.
+      setProfileMessage(
+        updated.pendingEmail
+          ? `Profil enregistré. ${updated.pendingEmail} reste à confirmer.`
+          : 'Profil enregistré.',
+      );
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : 'Enregistrement impossible');
     } finally {
@@ -127,8 +187,9 @@ export default function ProfilePage() {
       setPasswordError('Les deux mots de passe ne correspondent pas.');
       return;
     }
-    if (newPassword.length < PASSWORD_MIN) {
-      setPasswordError(`Le mot de passe doit contenir au moins ${PASSWORD_MIN} caractères.`);
+    const verdict = checkPassword(newPassword, { email: user?.email, name: user?.name ?? undefined });
+    if (!verdict.ok) {
+      setPasswordError(verdict.reason);
       return;
     }
 
@@ -195,7 +256,7 @@ export default function ProfilePage() {
       <header className="mb-9">
         <p className="tf-eyebrow mb-3">Votre compte</p>
         <h1 className="tf-display text-[clamp(2rem,5vw,2.9rem)]">
-          <span className="tf-mask">
+          <span >
             <span>Profil</span>
           </span>
         </h1>
@@ -203,13 +264,13 @@ export default function ProfilePage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
         {/* ── Identité ────────────────────────────────────────── */}
-        <Surface radius="xl" panel className="h-fit p-7 text-center">
+        <Surface radius="xl" className="h-fit p-7 text-center">
           <div className="mb-5 inline-block">
             <Avatar name={displayName} avatar={avatar} size={92} />
           </div>
 
           <p className="mb-1 text-[16px] font-semibold tracking-[-0.015em]">{displayName}</p>
-          <p className="mb-6 text-[13px]" style={{ color: 'var(--color-haze)' }}>
+          <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
             {email}
           </p>
 
@@ -220,7 +281,7 @@ export default function ProfilePage() {
           )}
 
           <Button
-            variant="glass"
+            variant="neutral"
             block
             loading={uploadingAvatar}
             onClick={() => fileInput.current?.click()}
@@ -246,9 +307,9 @@ export default function ProfilePage() {
 
         <div className="flex flex-col gap-4">
           {/* ── Informations ──────────────────────────────────── */}
-          <Surface radius="xl" panel className="p-7">
+          <Surface radius="xl" className="p-7">
             <h2 className="tf-display mb-1 text-[1.2rem]">Informations</h2>
-            <p className="mb-6 text-[13px]" style={{ color: 'var(--color-haze)' }}>
+            <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
               Votre nom apparaît sur les tâches que vous créez.
             </p>
 
@@ -271,8 +332,39 @@ export default function ProfilePage() {
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                   required
+                  hint="Changer d’adresse demande une confirmation par email."
                 />
               </div>
+
+              {/* Un changement d'adresse ne s'applique qu'après confirmation :
+                  le dire évite de croire que rien ne s'est passé. */}
+              {pendingEmail && (
+                <div
+                  className="tf-in rounded-[var(--r-1)] px-4 py-3.5"
+                  style={{
+                    background: 'color-mix(in oklab, var(--info-text) 9%, transparent)',
+                    boxShadow:
+                      'inset 0 0 0 1px color-mix(in oklab, var(--info-text) 26%, transparent)',
+                  }}
+                >
+                  <p className="text-[13.5px]" style={{ color: 'var(--info-text)' }}>
+                    En attente de confirmation : <strong>{pendingEmail}</strong>
+                  </p>
+                  <p className="mt-1.5 text-[12.5px]" style={{ color: 'var(--text-2)' }}>
+                    Votre compte garde <strong>{email}</strong> tant que le lien envoyé à la
+                    nouvelle adresse n’a pas été ouvert. Le lien expire au bout de 24 heures.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-3"
+                    loading={annulation}
+                    onClick={() => void handleCancelEmailChange()}
+                  >
+                    Annuler ce changement
+                  </Button>
+                </div>
+              )}
 
               <div>
                 <Button type="submit" variant="primary" loading={savingProfile}>
@@ -283,9 +375,9 @@ export default function ProfilePage() {
           </Surface>
 
           {/* ── Mot de passe ──────────────────────────────────── */}
-          <Surface radius="xl" panel className="p-7">
+          <Surface radius="xl" className="p-7">
             <h2 className="tf-display mb-1 text-[1.2rem]">Mot de passe</h2>
-            <p className="mb-6 text-[13px]" style={{ color: 'var(--color-haze)' }}>
+            <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
               Le modifier déconnecte tous vos autres appareils.
             </p>
 
@@ -303,14 +395,11 @@ export default function ProfilePage() {
               />
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field
+                <PasswordField
                   label="Nouveau mot de passe"
-                  type="password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  minLength={PASSWORD_MIN}
-                  hint={`${PASSWORD_MIN} caractères minimum.`}
+                  onChange={setNewPassword}
+                  context={{ email: user?.email, name: user?.name ?? undefined }}
                   required
                 />
                 <Field

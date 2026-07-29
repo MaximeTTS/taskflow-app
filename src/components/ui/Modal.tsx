@@ -17,10 +17,10 @@ type Props = {
 };
 
 /**
- * Modale de verre.
+ * Modale.
  *
- * Le voile derrière elle est flouté : la modale devient une couche de verre
- * supplémentaire au lieu d'un rectangle posé sur un écran assombri.
+ * Le voile derrière elle est flouté et non seulement assombri : la modale
+ * se pose sur une couche atténuée plutôt que sur un écran éteint.
  *
  * Trois comportements que les modales oublient souvent : Échap referme, le
  * focus part sur le panneau à l'ouverture et revient à son point de départ
@@ -65,39 +65,33 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="tf-modal g g-panel g-lift-lg tf-in"
-        style={{ maxWidth: width, borderRadius: 'var(--r-xl)' }}
+        className="tf-modal flex max-h-[88vh] flex-col"
+        style={{ maxWidth: width }}
       >
-        <span className="g-refract" />
-        <span className="g-tint" />
-        <span className="g-rim" />
+        <header className="flex items-start justify-between gap-4 px-7 pt-6 pb-4">
+          <div>
+            <h2 className="tf-display text-[20px]">{title}</h2>
+            {subtitle && (
+              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-2)' }}>
+                {subtitle}
+              </p>
+            )}
+          </div>
+          <IconButton label="Fermer" onClick={onClose}>
+            <Icon.Close size={16} />
+          </IconButton>
+        </header>
 
-        <div className="g-body flex max-h-[88vh] flex-col">
-          <header className="flex items-start justify-between gap-4 px-7 pt-6 pb-4">
-            <div>
-              <h2 className="tf-display text-[22px]">{title}</h2>
-              {subtitle && (
-                <p className="mt-1 text-[13px]" style={{ color: 'var(--color-haze)' }}>
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            <IconButton label="Fermer" onClick={onClose}>
-              <Icon.Close size={16} />
-            </IconButton>
-          </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-6">{children}</div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-6">{children}</div>
-
-          {footer && (
-            <footer
-              className="flex items-center justify-end gap-2.5 px-7 py-4"
-              style={{ borderTop: '1px solid var(--rim)' }}
-            >
-              {footer}
-            </footer>
-          )}
-        </div>
+        {footer && (
+          <footer
+            className="flex items-center justify-end gap-2.5 px-7 py-4"
+            style={{ borderTop: '1px solid var(--border)' }}
+          >
+            {footer}
+          </footer>
+        )}
       </div>
     </div>
   );
