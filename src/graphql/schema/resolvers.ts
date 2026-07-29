@@ -20,6 +20,32 @@ function requireUser(context: Context) {
 }
 
 /**
+ * Supprime des fichiers chez Cloudinary après leur disparition de la base.
+ *
+ * Sans cet appel, supprimer une tâche ou un projet effaçait bien les lignes
+ * TaskImage par cascade mais laissait les fichiers en ligne pour toujours :
+ * une fuite de stockage silencieuse et sans limite.
+ *
+ * Les échecs sont journalisés, jamais propagés : la suppression métier a
+ * déjà eu lieu, et faire échouer la mutation à cause d'un fichier distant
+ * laisserait l'utilisateur croire que rien n'a été supprimé.
+ */
+async function purgeCloudinary(publicIds: string[]): Promise<void> {
+  if (publicIds.length === 0) return;
+
+  const { deleteImage, isCloudinaryConfigured } = await import('@/lib/cloudinary');
+  if (!isCloudinaryConfigured) return;
+
+  await Promise.allSettled(publicIds.map((id) => deleteImage(id))).then((résultats) => {
+    for (const r of résultats) {
+      if (r.status === 'rejected') {
+        console.error('[cloudinary] suppression impossible', r.reason);
+      }
+    }
+  });
+}
+
+/**
  * Forme d'un projet tel que renvoyé par les resolvers de Query : les
  * compteurs et les tâches ne sont présents que si la requête parente les a
  * déjà chargés.
@@ -345,9 +371,21 @@ export const resolvers = {
       const user = requireUser(context);
       await requireProjectRole(user.id, args.id, 'OWNER');
 
+      // Les TaskImage disparaissent en base par cascade, mais les fichiers
+      // resteraient chez Cloudinary indéfiniment. On les collecte avant de
+      // supprimer, sinon leurs identifiants sont perdus.
+      const images = await prisma.taskImage.findMany({
+        where: { task: { projectId: args.id } },
+        select: { publicId: true },
+      });
+
       await prisma.project.delete({
         where: { id: args.id },
       });
+
+      // Après la suppression en base : un échec côté Cloudinary ne doit pas
+      // laisser le projet à moitié supprimé. Au pire, un fichier orphelin.
+      await purgeCloudinary(images.map((i) => i.publicId));
 
       return true;
     },
@@ -605,7 +643,15 @@ export const resolvers = {
       // supprimer, MEMBER pour modifier) n'apportait aucune protection.
       await requireProjectRole(user.id, task.projectId, 'MEMBER');
 
+      const images = await prisma.taskImage.findMany({
+        where: { taskId: args.id },
+        select: { publicId: true },
+      });
+
       await prisma.task.delete({ where: { id: args.id } });
+
+      await purgeCloudinary(images.map((i) => i.publicId));
+
       return true;
     },
 

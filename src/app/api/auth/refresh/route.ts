@@ -2,7 +2,30 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { REFRESH_COOKIE } from '@/lib/cookies';
-import { resolveSession } from '@/lib/session';
+import { purgeExpiredSessions, resolveSession } from '@/lib/session';
+
+/**
+ * Purge opportuniste des sessions expirées.
+ *
+ * `purgeExpiredSessions` existait mais n'était jamais appelée : la table
+ * grossissait sans limite. Plutôt qu'une tâche planifiée — qui imposerait
+ * une infrastructure à ce projet —, on la déclenche sur une fraction des
+ * rafraîchissements. Avec une chance sur cinquante, le nettoyage suit
+ * naturellement le trafic sans le ralentir.
+ */
+const PURGE_PROBABILITY = 0.02;
+
+function maybePurge(): void {
+  if (Math.random() >= PURGE_PROBABILITY) return;
+
+  // Volontairement non attendu : le nettoyage ne doit pas retarder la
+  // réponse de l'utilisateur.
+  void purgeExpiredSessions()
+    .then((count) => {
+      if (count > 0) console.info(`[auth] ${count} session(s) expirée(s) purgée(s)`);
+    })
+    .catch((error) => console.error('[auth] purge impossible', error));
+}
 import { authSuccess, clearAuthCookies, errorResponse, isSameOrigin, jsonError } from '../_shared';
 
 /**
@@ -18,6 +41,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    maybePurge();
+
     const token = req.cookies.get(REFRESH_COOKIE)?.value;
 
     if (!token) {
