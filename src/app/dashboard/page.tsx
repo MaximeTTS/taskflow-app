@@ -29,10 +29,8 @@ const GET_PROJECTS = gql`
         name
         email
       }
-      tasks {
-        id
-        status
-      }
+      taskCount
+      completedTaskCount
       members {
         id
         role
@@ -56,7 +54,6 @@ const CREATE_PROJECT = gql`
   }
 `;
 
-type Task = { id: string; status: string };
 type Member = { id: string; role: string; user: { id: string; name: string; avatar?: string } };
 type Project = {
   id: string;
@@ -64,7 +61,8 @@ type Project = {
   description: string | null;
   createdAt: string;
   owner: { id: string; name: string; email: string };
-  tasks: Task[];
+  taskCount: number;
+  completedTaskCount: number;
   members: Member[];
 };
 
@@ -119,11 +117,11 @@ export default function DashboardPage() {
     }
   };
 
-  const totalTasks = projects.reduce((acc, p) => acc + p.tasks.length, 0);
-  const doneTasks = projects.reduce((acc, p) => acc + p.tasks.filter((t) => t.status === 'DONE').length, 0);
-  const activeProjects = projects.filter((p) =>
-    p.tasks.some((t) => t.status !== 'DONE' && t.status !== 'CANCELLED'),
-  );
+  // Les compteurs viennent désormais du serveur, agrégés en une requête :
+  // le tableau de bord ne rapatrie plus toutes les tâches de tous les projets.
+  const totalTasks = projects.reduce((acc, p) => acc + p.taskCount, 0);
+  const doneTasks = projects.reduce((acc, p) => acc + p.completedTaskCount, 0);
+  const activeProjects = projects.filter((p) => p.completedTaskCount < p.taskCount);
   const memberCount = [...new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)))].length;
 
   const stats = [
@@ -227,8 +225,8 @@ export default function DashboardPage() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5"
         >
           {projects.map((project, idx) => {
-            const done = project.tasks.filter((t) => t.status === 'DONE').length;
-            const total = project.tasks.length;
+            const done = project.completedTaskCount;
+            const total = project.taskCount;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             const accent = ACCENTS[idx % ACCENTS.length];
             return (

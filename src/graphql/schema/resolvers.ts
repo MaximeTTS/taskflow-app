@@ -19,7 +19,49 @@ function requireUser(context: Context) {
   return context.user;
 }
 
+/**
+ * Forme d'un projet tel que renvoyé par les resolvers de Query : les
+ * compteurs et les tâches ne sont présents que si la requête parente les a
+ * déjà chargés.
+ */
+type ProjectParent = {
+  id: string;
+  tasks?: unknown[];
+  taskCount?: number;
+  completedTaskCount?: number;
+};
+
 export const resolvers = {
+  /**
+   * Résolveurs de champ, qui gardent le type cohérent quelle que soit la
+   * requête d'origine : `projects` fournit les compteurs sans les tâches,
+   * `project(id)` fournit les tâches sans les compteurs. Chacun se contente
+   * de ce qui est déjà chargé et ne va en base qu'en dernier recours.
+   */
+  Project: {
+    tasks: async (parent: ProjectParent) => {
+      if (parent.tasks) return parent.tasks;
+      return prisma.task.findMany({
+        where: { projectId: parent.id },
+        include: { assignee: true, creator: true, images: true },
+      });
+    },
+
+    taskCount: async (parent: ProjectParent) => {
+      if (typeof parent.taskCount === 'number') return parent.taskCount;
+      if (Array.isArray(parent.tasks)) return parent.tasks.length;
+      return prisma.task.count({ where: { projectId: parent.id } });
+    },
+
+    completedTaskCount: async (parent: ProjectParent) => {
+      if (typeof parent.completedTaskCount === 'number') return parent.completedTaskCount;
+      if (Array.isArray(parent.tasks)) {
+        return (parent.tasks as { status?: string }[]).filter((t) => t.status === 'DONE').length;
+      }
+      return prisma.task.count({ where: { projectId: parent.id, status: 'DONE' } });
+    },
+  },
+
   Query: {
     me: async (_: unknown, __: unknown, context: Context) => {
       if (!context.user) return null;
@@ -72,7 +114,8 @@ export const resolvers = {
 
     projects: async (_: unknown, __: unknown, context: Context) => {
       const user = requireUser(context);
-      return prisma.project.findMany({
+
+      const projects = await prisma.project.findMany({
         where: {
           members: {
             some: { userId: user.id },
@@ -81,8 +124,37 @@ export const resolvers = {
         include: {
           owner: true,
           members: { include: { user: true } },
-          tasks: true,
         },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (projects.length === 0) return [];
+
+      // La version precedente incluait `tasks: true`, chargeant toutes les
+      // taches de tous les projets uniquement pour en afficher le nombre.
+      // Un seul regroupement suffit, quel que soit le nombre de projets.
+      const grouped = await prisma.task.groupBy({
+        by: ['projectId', 'status'],
+        where: { projectId: { in: projects.map((p) => p.id) } },
+        _count: { _all: true },
+      });
+
+      const totals = new Map<string, { total: number; done: number }>();
+      for (const row of grouped) {
+        const entry = totals.get(row.projectId) ?? { total: 0, done: 0 };
+        const count = row._count._all;
+        entry.total += count;
+        if (row.status === 'DONE') entry.done += count;
+        totals.set(row.projectId, entry);
+      }
+
+      return projects.map((project) => {
+        const counts = totals.get(project.id) ?? { total: 0, done: 0 };
+        return {
+          ...project,
+          taskCount: counts.total,
+          completedTaskCount: counts.done,
+        };
       });
     },
 

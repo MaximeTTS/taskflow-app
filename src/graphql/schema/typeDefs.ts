@@ -19,6 +19,11 @@ export const typeDefs = gql`
     owner: User!
     members: [ProjectMember!]!
     tasks: [Task!]!
+
+    # Compteurs agrégés. Permettent aux vues de synthèse (le tableau de bord)
+    # d'afficher une progression sans rapatrier toutes les tâches.
+    taskCount: Int!
+    completedTaskCount: Int!
   }
 
   type ProjectMember {

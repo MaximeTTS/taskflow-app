@@ -64,6 +64,7 @@ model Project {
   members ProjectMember[]
   tasks   Task[]
 
+  @@index([ownerId])
   @@map("projects")
 }
 
@@ -78,6 +79,10 @@ model ProjectMember {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, projectId])
+  // L'index unique porte sur (userId, projectId) : une recherche par
+  // projectId seul ne pouvait pas l'utiliser, faute d'etre en tete de cle.
+  // C'est pourtant l'acces le plus frequent (lister les membres d'un projet).
+  @@index([projectId])
   @@map("project_members")
 }
 
@@ -99,6 +104,13 @@ model Task {
   creator    User    @relation("TaskCreator", fields: [creatorId], references: [id])
   images     TaskImage[]
 
+  // Toutes les lectures de taches partent d'un projet ; sans index,
+  // PostgreSQL parcourait la table entiere a chaque ouverture de tableau.
+  @@index([projectId])
+  // Sert au comptage par colonne du tableau Kanban.
+  @@index([projectId, status])
+  @@index([assigneeId])
+  @@index([creatorId])
   @@map("tasks")
 }
 
@@ -111,6 +123,7 @@ model TaskImage {
   taskId    String
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
+  @@index([taskId])
   @@map("task_images")
 }
 
