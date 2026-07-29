@@ -1,63 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { motion, AnimatePresence } from 'framer-motion';
+import { use, useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
   KeyboardSensor,
   PointerSensor,
+  closestCorners,
+  useDroppable,
   useSensor,
   useSensors,
-  useDroppable,
-  type DragStartEvent,
-  type DragEndEvent,
-  type DragOverEvent,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-
-import { TfBackground } from '@/components/tf/Backgrounds';
-import { BrandMark, ThemeToggle, IconButton, TfAvatar, Icon } from '@/components/tf/atoms';
-
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { AppShell } from '@/components/glass/AppShell';
+import { Surface } from '@/components/glass/Surface';
+import { Button } from '@/components/glass/Button';
+import { Alert } from '@/components/glass/Alert';
+import { Icon } from '@/components/glass/Icon';
+import { AvatarStack } from '@/components/glass/Avatar';
+import { STATUS, STATUS_ORDER } from '@/components/glass/Pill';
+import type { TaskStatus } from '@/components/glass/Pill';
+import { ROLE_HIERARCHY } from '@/lib/role-utils';
+import type { Role } from '@/lib/role-utils';
 import { useProject } from './_hooks/useProject';
 import { TaskCard } from './_components/TaskCard';
-import { CreateTaskModal } from './_components/CreateTaskModal';
-import { TaskDetailModal } from './_components/TaskDetailModal';
-import { InviteMemberModal, EditProjectModal, MembersModal } from './_components/OtherModals';
-import { COLUMNS, columnVariants } from './_constants';
-import type { Task, TaskImage } from './_types';
+import { TaskModal } from './_components/TaskModal';
+import { MembersModal, NewTaskModal, SettingsModal } from './_components/ProjectModals';
+import type { Task } from './_types';
 
-function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className="p-3 flex flex-col gap-2.5 flex-1 min-h-[80px] rounded-b-3xl transition-all duration-200"
-      style={isOver ? { boxShadow: 'inset 0 0 0 2px var(--tf-accent)' } : undefined}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default function ProjectPage() {
+export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: projectId } = use(params);
   const router = useRouter();
-  const params = useParams();
-  const projectId = params.id as string;
+  const { user } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
 
   const {
     project,
-    setProject,
     loading,
     fetchProject,
     handleUpdateTask,
@@ -72,35 +54,20 @@ export default function ProjectPage() {
     handleDeleteProject,
   } = useProject(projectId);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('TODO');
-
-  const [showCreateTask, setShowCreateTask] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-
-  const [showMemberModal, setShowMemberModal] = useState(false);
-  const [showMembersList, setShowMembersList] = useState(false);
-  const [showEditProject, setShowEditProject] = useState(false);
-  const [deletingProject, setDeletingProject] = useState(false);
-
-  const [lightboxImages, setLightboxImages] = useState<TaskImage[]>([]);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeTaskWidth, setActiveTaskWidth] = useState<number | null>(null);
-  const [taskOrder, setTaskOrder] = useState<Record<string, string[]>>({});
+  const [draggingTask, setDraggingTask] = useState<Task | null>(null);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Colonne visible sur mobile : quatre colonnes n'y tiennent pas. */
+  const [mobileColumn, setMobileColumn] = useState<TaskStatus>('TODO');
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // 6 px de tolérance : sans ce seuil, un simple clic sur une carte
+    // déclencherait un glissement et n'ouvrirait jamais la tâche.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-
-  const { user: authUser, isAuthenticated, isLoading: authLoading } = useRequireAuth();
-
-  useEffect(() => {
-    if (authUser) setCurrentUserId(authUser.id);
-  }, [authUser]);
 
   useEffect(() => {
     if (authLoading || !isAuthenticated) return;
@@ -108,519 +75,280 @@ export default function ProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAuthenticated, projectId]);
 
-  const projectTasksKey = project?.tasks.map((t) => `${t.id}:${t.status}`).join(',') ?? '';
+  const myRole: Role = useMemo(() => {
+    const membership = project?.members.find((m) => m.user.id === user?.id);
+    return (membership?.role as Role) ?? 'VIEWER';
+  }, [project, user]);
 
-  useEffect(() => {
-    if (!project) return;
-    setTaskOrder((prev) => {
-      const merged: Record<string, string[]> = {};
-      let changed = false;
-      COLUMNS.forEach((col) => {
-        const order = project.tasks.filter((t) => t.status === col.key).map((t) => t.id);
-        const prevCol = prev[col.key] ?? [];
-        if (prevCol.length > 0) {
-          const existing = prevCol.filter((id) => order.includes(id));
-          const newIds = order.filter((id) => !existing.includes(id));
-          merged[col.key] = [...existing, ...newIds];
-        } else {
-          merged[col.key] = order;
-        }
-        if ((merged[col.key] ?? []).join(',') !== prevCol.join(',')) changed = true;
-      });
-      return changed ? merged : prev;
-    });
-  }, [projectTasksKey]);
+  const canEdit = ROLE_HIERARCHY[myRole] >= ROLE_HIERARCHY.MEMBER;
+  const isAdmin = ROLE_HIERARCHY[myRole] >= ROLE_HIERARCHY.ADMIN;
+  const isOwner = myRole === 'OWNER';
 
-  const getOrderedTasks = (status: string): Task[] => {
-    if (!project) return [];
-    const tasksInCol = project.tasks.filter((t) => t.status === status);
-    const order = taskOrder[status];
-    if (!order || order.length === 0) return tasksInCol;
-    return [...tasksInCol].sort((a, b) => {
-      const ia = order.indexOf(a.id);
-      const ib = order.indexOf(b.id);
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-    });
-  };
-
-  const findColumnOfTask = (taskId: string): string | null => {
-    for (const col of COLUMNS) {
-      if (taskOrder[col.key]?.includes(taskId)) return col.key;
+  const byStatus = useMemo(() => {
+    const map = new Map<TaskStatus, Task[]>();
+    for (const s of STATUS_ORDER) map.set(s, []);
+    for (const t of project?.tasks ?? []) {
+      const list = map.get(t.status as TaskStatus);
+      if (list) list.push(t);
     }
-    return project?.tasks.find((t) => t.id === taskId)?.status ?? null;
-  };
+    return map;
+  }, [project]);
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const onDragStart = (event: DragStartEvent) => {
     const task = project?.tasks.find((t) => t.id === event.active.id);
-    if (task) {
-      setActiveTask(task);
-      const node = document.getElementById(`task-card-${task.id}`);
-      if (node) setActiveTaskWidth(node.getBoundingClientRect().width);
-    }
+    setDraggingTask(task ?? null);
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const onDragEnd = async (event: DragEndEvent) => {
+    setDraggingTask(null);
     const { active, over } = event;
-    if (!over) return;
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    const activeCol = findColumnOfTask(activeId);
-    const overCol = COLUMNS.some((c) => c.key === overId) ? overId : findColumnOfTask(overId);
-    if (!activeCol || !overCol || activeCol === overCol) return;
-    setTaskOrder((prev) => {
-      const activeItems = [...(prev[activeCol] ?? [])];
-      const overItems = [...(prev[overCol!] ?? [])];
-      const activeIndex = activeItems.indexOf(activeId);
-      if (activeIndex === -1) return prev;
-      activeItems.splice(activeIndex, 1);
-      if (COLUMNS.some((c) => c.key === overId)) {
-        overItems.push(activeId);
-      } else {
-        const overIndex = overItems.indexOf(overId);
-        overItems.splice(overIndex === -1 ? overItems.length : overIndex, 0, activeId);
-      }
-      return { ...prev, [activeCol]: activeItems, [overCol!]: overItems };
-    });
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTask(null);
-    setActiveTaskWidth(null);
     if (!over || !project) return;
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    const currentCol = findColumnOfTask(activeId);
-    if (!currentCol) return;
-    let targetCol = COLUMNS.some((c) => c.key === overId) ? overId : findColumnOfTask(overId);
-    if (!targetCol) targetCol = currentCol;
-    if (currentCol === targetCol && activeId !== overId) {
-      setTaskOrder((prev) => {
-        const items = [...(prev[currentCol] ?? [])];
-        const oldIndex = items.indexOf(activeId);
-        const newIndex = items.indexOf(overId);
-        if (oldIndex === -1 || newIndex === -1) return prev;
-        return { ...prev, [currentCol]: arrayMove(items, oldIndex, newIndex) };
-      });
-    }
-    const task = project.tasks.find((t) => t.id === activeId);
-    if (task && task.status !== targetCol) {
-      await handleUpdateTask(activeId, { status: targetCol });
-    }
+
+    const task = project.tasks.find((t) => t.id === active.id);
+    if (!task) return;
+
+    // La cible est soit une colonne, soit une autre tâche : dans le second
+    // cas on récupère le statut de cette tâche.
+    const overId = String(over.id);
+    const targetStatus = STATUS_ORDER.includes(overId as TaskStatus)
+      ? (overId as TaskStatus)
+      : ((project.tasks.find((t) => t.id === overId)?.status as TaskStatus) ?? null);
+
+    if (!targetStatus || targetStatus === task.status) return;
+
+    await handleUpdateTask(task.id, { status: targetStatus });
   };
 
-  if (loading)
+  if (loading || !project) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--tf-text-muted)' }}>
-        Chargement...
-      </div>
+      <AppShell active="dashboard" breadcrumb={[{ label: 'Projets', href: '/dashboard' }, { label: '…' }]}>
+        <div className="grid gap-3 lg:grid-cols-4">
+          {STATUS_ORDER.map((s) => (
+            <Surface key={s} radius="lg" className="h-64 animate-pulse">
+              <span />
+            </Surface>
+          ))}
+        </div>
+      </AppShell>
     );
-
-  if (!project)
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--tf-text-muted)' }}>
-        Projet introuvable
-      </div>
-    );
-
-  const onlineMembers = project.members;
-
-  const SortableTaskCard = ({ task }: { task: Task }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: task.id,
-    });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition: transition ?? 'transform 200ms ease',
-      opacity: isDragging ? 0.3 : 1,
-    };
-    return (
-      <div
-        id={`task-card-${task.id}`}
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing w-full"
-      >
-        <TaskCard
-          task={task}
-          onClick={() => {
-            if (!isDragging) setSelectedTask(task);
-          }}
-          onImageClick={(imgs, idx) => {
-            setLightboxImages(imgs);
-            setLightboxIndex(idx);
-          }}
-        />
-      </div>
-    );
-  };
+  }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden" style={{ color: 'var(--tf-text)' }}>
-      <TfBackground />
-
-      {/* Top header */}
-      <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-3 sm:px-6 pt-4">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="tf-pill flex items-center gap-3 rounded-full pl-2 pr-4 h-[52px] text-left"
-        >
-          <BrandMark size={36} />
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="flex items-center gap-1.5 text-[12px]" style={{ color: 'var(--tf-text-faint)' }}>
-              <span>TaskFlow</span>
-              <span className="opacity-60">/</span>
-              <span>Projets</span>
+    <AppShell
+      active="dashboard"
+      breadcrumb={[{ label: 'Projets', href: '/dashboard' }, { label: project.name }]}
+    >
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-5">
+        <div className="min-w-0">
+          <p className="tf-eyebrow mb-3">Tableau</p>
+          <h1 className="tf-display mb-2 text-[clamp(1.8rem,4.5vw,2.6rem)]">
+            <span className="tf-mask">
+              <span>{project.name}</span>
             </span>
-            <span className="text-[15px] font-semibold truncate max-w-[40vw]" style={{ letterSpacing: '-0.01em' }}>
-              {project.name}
-            </span>
-          </div>
-        </button>
+          </h1>
+          {project.description && (
+            <p className="max-w-xl text-[14px]" style={{ color: 'var(--color-haze)' }}>
+              {project.description}
+            </p>
+          )}
+        </div>
 
-        <div className="tf-pill flex items-center gap-1 rounded-full px-1.5 h-[52px]">
-          <IconButton title="Modifier le projet" onClick={() => setShowEditProject(true)}>
-            <Icon.Edit />
-          </IconButton>
-          <IconButton
-            title="Supprimer le projet"
-            onClick={async () => {
-              if (!confirm('Supprimer ce projet ?')) return;
-              setDeletingProject(true);
-              try {
-                await handleDeleteProject();
-                router.push('/dashboard');
-              } finally {
-                setDeletingProject(false);
-              }
-            }}
-          >
-            <Icon.Trash />
-          </IconButton>
-          <ThemeToggle />
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => setShowCreateTask(true)}
-            disabled={deletingProject}
-            className="h-10 px-4 rounded-full inline-flex items-center gap-1.5 text-[13.5px] font-semibold ml-1"
-            style={{
-              background: 'var(--tf-accent-solid)',
-              color: 'var(--tf-accent-text)',
-              boxShadow: '0 6px 16px -8px rgba(0,0,0,0.3)',
-            }}
+            type="button"
+            onClick={() => setMembersOpen(true)}
+            className="rounded-full p-0.5 transition-transform hover:-translate-y-0.5"
+            aria-label="Voir les membres"
           >
-            <Icon.Plus /> <span className="hidden sm:inline">Nouvelle tâche</span>
+            <AvatarStack
+              people={project.members.map((m) => ({
+                name: m.user.name || m.user.email,
+                avatar: m.user.avatar,
+              }))}
+              size={30}
+            />
           </button>
+
+          {isAdmin && (
+            <Button variant="glass" onClick={() => setSettingsOpen(true)}>
+              Réglages
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="primary" onClick={() => setNewTaskOpen(true)}>
+              <Icon.Plus size={16} />
+              Nouvelle tâche
+            </Button>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Mobile Kanban */}
-      <div className="lg:hidden relative z-[2] flex flex-col px-3 pt-4 pb-28">
-        <div className="flex gap-1 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none' }}>
-          {COLUMNS.map((col) => {
-            const count = project.tasks.filter((t) => t.status === col.key).length;
-            const isActive = activeTab === col.key;
-            return (
-              <button
-                key={col.key}
-                onClick={() => setActiveTab(col.key)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors"
-                style={{
-                  background: isActive ? 'var(--tf-card-bg)' : 'transparent',
-                  color: isActive ? 'var(--tf-text)' : 'var(--tf-text-muted)',
-                  boxShadow: isActive ? 'var(--tf-card-shadow)' : 'none',
-                }}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ background: col.dot }} />
-                {col.shortLabel}
-                <span className="text-[10px] px-1.5 rounded-full" style={{ background: 'var(--tf-soft)' }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+      {!canEdit && (
+        <div className="mb-6">
+          <Alert tone="info">
+            Vous consultez ce projet en lecture seule. Demandez le rôle « Membre » pour
+            modifier les tâches.
+          </Alert>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -8 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-2.5"
+      )}
+
+      {/* Sélecteur de colonne, sous lg uniquement. */}
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+        {STATUS_ORDER.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setMobileColumn(s)}
+            className="tf-nav-item shrink-0"
+            data-active={mobileColumn === s ? 'true' : undefined}
           >
-            {project.tasks
-              .filter((t) => t.status === activeTab)
-              .map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => setSelectedTask(task)}
-                  onImageClick={(imgs, idx) => {
-                    setLightboxImages(imgs);
-                    setLightboxIndex(idx);
-                  }}
-                />
-              ))}
-            {project.tasks.filter((t) => t.status === activeTab).length === 0 && (
-              <div className="flex items-center justify-center py-12">
-                <p className="text-sm" style={{ color: 'var(--tf-text-faint)' }}>
-                  Aucune tâche
-                </p>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+            {STATUS[s].label}
+            <span className="tf-num text-[11px]" style={{ color: 'var(--color-mute)' }}>
+              {byStatus.get(s)?.length ?? 0}
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Desktop Kanban */}
-      <div className="hidden lg:block relative z-[2] px-6 pt-6 pb-28 overflow-x-auto">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid grid-cols-4 gap-5 min-w-[900px] items-start"
-          >
-            {COLUMNS.map((col) => {
-              const orderedTasks = getOrderedTasks(col.key);
-              return (
-                <motion.div
-                  key={col.key}
-                  variants={columnVariants}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
-                  className="tf-panel flex flex-col"
-                  style={{ borderRadius: 'calc(30px * var(--tf-radius-scale, 1))' }}
-                >
-                  <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
-                    <span className="w-2 h-2 rounded-full" style={{ background: col.dot, boxShadow: `0 0 8px ${col.dot}99` }} />
-                    <span className="text-[13.5px] font-semibold" style={{ letterSpacing: '-0.01em' }}>
-                      {col.label}
-                    </span>
-                    <span
-                      className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[22px] text-center"
-                      style={{ background: 'var(--tf-soft)', color: 'var(--tf-text-muted)' }}
-                    >
-                      {orderedTasks.length}
-                    </span>
-                  </div>
-                  <SortableContext
-                    id={col.key}
-                    items={orderedTasks.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <DroppableColumn id={col.key}>
-                      {orderedTasks.map((task) => (
-                        <SortableTaskCard key={task.id} task={task} />
-                      ))}
-                      {orderedTasks.length === 0 && (
-                        <div
-                          className="flex-1 flex items-center justify-center py-8 rounded-2xl"
-                          style={{ border: '1px dashed var(--tf-hairline)' }}
-                        >
-                          <p className="text-[12px]" style={{ color: 'var(--tf-text-faint)' }}>
-                            Glissez une tâche ici
-                          </p>
-                        </div>
-                      )}
-                    </DroppableColumn>
-                  </SortableContext>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-          <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
-            {activeTask ? (
-              <div className="rotate-[2deg]" style={{ width: activeTaskWidth ? `${activeTaskWidth}px` : '300px' }}>
-                <TaskCard task={activeTask} isDragging />
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </div>
-
-      {/* Bottom dock — members */}
-      <div className="fixed bottom-5 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
-        <div className="tf-pill flex items-center gap-2.5 rounded-full pl-3 pr-2 h-14 pointer-events-auto">
-          <span className="w-[7px] h-[7px] rounded-full bg-[#4ade80]" style={{ boxShadow: '0 0 8px rgba(74,222,128,0.6)' }} />
-          <span className="text-[12px] font-medium hidden sm:inline" style={{ color: 'var(--tf-text-muted)' }}>
-            {onlineMembers.length} membre(s)
-          </span>
-          <div className="flex items-center">
-            {project.members.slice(0, 4).map((m, i) => (
-              <div key={m.id} style={{ marginLeft: i === 0 ? 0 : -10 }}>
-                <TfAvatar name={m.user.name} avatar={m.user.avatar} size={32} ring online />
-              </div>
-            ))}
-            {project.members.length > 4 && (
-              <div
-                className="flex items-center justify-center text-[11px] font-semibold rounded-full"
-                style={{
-                  marginLeft: -10,
-                  width: 32,
-                  height: 32,
-                  background: 'var(--tf-soft)',
-                  color: 'var(--tf-text)',
-                  boxShadow: '0 0 0 2px rgba(255,255,255,0.5)',
-                }}
-              >
-                +{project.members.length - 4}
-              </div>
-            )}
-          </div>
-          <motion.button
-            onClick={() => setShowMembersList(true)}
-            whileHover={{ y: -1, scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 24 }}
-            className="ml-1 h-10 px-4 rounded-full inline-flex items-center gap-1.5 text-[12.5px] font-semibold"
-            style={{
-              background: 'var(--tf-accent-solid)',
-              color: 'var(--tf-accent-text)',
-              boxShadow: '0 6px 16px -8px rgba(0,0,0,0.3)',
-            }}
-          >
-            <Icon.Plus /> Gérer
-          </motion.button>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      >
+        <div className="grid gap-3.5 lg:grid-cols-4">
+          {STATUS_ORDER.map((status) => (
+            <Column
+              key={status}
+              status={status}
+              tasks={byStatus.get(status) ?? []}
+              hiddenOnMobile={mobileColumn !== status}
+              onOpenTask={setSelectedTask}
+            />
+          ))}
         </div>
-      </div>
 
-      {/* Modals */}
-      <CreateTaskModal
-        open={showCreateTask}
-        onClose={() => setShowCreateTask(false)}
-        members={project.members}
-        onSubmit={async (input, images) => {
-          await handleCreateTask({ ...input, projectId }, images);
-        }}
-      />
+        {/* La carte suit le curseur pendant le glissement. */}
+        <DragOverlay>
+          {draggingTask && (
+            <div className="rotate-2 opacity-95">
+              <TaskCard task={draggingTask} onOpen={() => {}} />
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
-      <TaskDetailModal
-        task={selectedTask}
-        project={project}
-        onClose={() => setSelectedTask(null)}
-        onUpdateTask={async (taskId, input) => {
-          await handleUpdateTask(taskId, input);
-          setSelectedTask((prev) => {
-            if (!prev) return prev;
-            const updated = project?.tasks.find((t) => t.id === taskId);
-            return updated ? { ...updated, ...input } : { ...prev, ...input };
-          });
-        }}
-        onDeleteTask={(taskId) => void handleDeleteTask(taskId, () => setSelectedTask(null))}
-        onUploadImage={async (file) => {
-          setUploadingImage(true);
-          try {
-            await handleUploadImage(file, selectedTask!, (task, proj) => {
-              setSelectedTask(task);
-              setProject(proj);
+      {selectedTask && (
+        <TaskModal
+          task={project.tasks.find((t) => t.id === selectedTask.id) ?? selectedTask}
+          project={project}
+          canEdit={canEdit}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={handleUpdateTask}
+          onDelete={async (taskId) => {
+            await handleDeleteTask(taskId, () => setSelectedTask(null));
+          }}
+          onUploadImage={async (file) => {
+            await handleUploadImage(file, selectedTask, (task) => setSelectedTask(task));
+          }}
+          onDeleteImage={async (imageId) => {
+            await handleDeleteImage(imageId, selectedTask.id, (task) => {
+              if (task) setSelectedTask(task);
             });
-          } finally {
-            setUploadingImage(false);
-          }
-        }}
-        onDeleteImage={async (imageId) => {
-          await handleDeleteImage(imageId, selectedTask?.id, (task, proj) => {
-            if (task) setSelectedTask(task);
-            setProject(proj);
-          });
-        }}
-        onLightbox={(imgs, idx) => {
-          setLightboxImages(imgs);
-          setLightboxIndex(idx);
-        }}
-        uploadingImage={uploadingImage}
+          }}
+        />
+      )}
+
+      <NewTaskModal
+        open={newTaskOpen}
+        onClose={() => setNewTaskOpen(false)}
+        project={project}
+        onCreate={handleCreateTask}
       />
 
       <MembersModal
-        open={showMembersList}
-        onClose={() => setShowMembersList(false)}
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
         project={project}
-        currentUserId={currentUserId}
-        onInvite={() => {
-          setShowMembersList(false);
-          setShowMemberModal(true);
-        }}
+        myRole={myRole}
+        myUserId={user?.id ?? ''}
+        onAdd={handleAddMember}
+        onRemove={handleRemoveMember}
         onUpdateRole={handleUpdateRole}
-        onRemoveMember={handleRemoveMember}
       />
 
-      <InviteMemberModal
-        open={showMemberModal}
-        onClose={() => setShowMemberModal(false)}
-        onSubmit={handleAddMember}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        project={project}
+        isOwner={isOwner}
+        onSave={handleUpdateProject}
+        onDelete={async () => {
+          await handleDeleteProject();
+          router.push('/dashboard');
+        }}
       />
+    </AppShell>
+  );
+}
 
-      <EditProjectModal
-        open={showEditProject}
-        onClose={() => setShowEditProject(false)}
-        initialName={project.name}
-        initialDesc={project.description ?? ''}
-        onSubmit={handleUpdateProject}
-      />
+/** Une colonne du tableau, zone de dépôt. */
+function Column({
+  status,
+  tasks,
+  hiddenOnMobile,
+  onOpenTask,
+}: {
+  status: TaskStatus;
+  tasks: Task[];
+  hiddenOnMobile: boolean;
+  onOpenTask: (task: Task) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const meta = STATUS[status];
 
-      {/* Lightbox */}
-      <AnimatePresence>
-        {lightboxImages.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-            onClick={() => setLightboxImages([])}
+  return (
+    <section
+      ref={setNodeRef}
+      className={`${hiddenOnMobile ? 'hidden lg:flex' : 'flex'} flex-col`}
+      aria-label={meta.label}
+    >
+      <div className="mb-3 flex items-center justify-between px-1">
+        <span className="tf-pill" style={{ color: meta.color }}>
+          <span className="tf-dot" />
+          {meta.label}
+        </span>
+        <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
+          {tasks.length}
+        </span>
+      </div>
+
+      <div
+        className="tf-column flex min-h-[180px] flex-1 flex-col gap-2.5 rounded-[var(--r-lg)] p-2.5 transition-colors duration-200"
+        style={{
+          // La colonne s'éclaire au survol d'un glissement : le retour doit
+          // dire où la carte va tomber.
+          background: isOver ? 'rgba(79,224,213,0.07)' : 'rgba(255,255,255,0.018)',
+          boxShadow: isOver
+            ? 'inset 0 0 0 1px rgba(79,224,213,0.35)'
+            : 'inset 0 0 0 1px var(--rim)',
+        }}
+      >
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.map((task) => (
+            <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+          ))}
+        </SortableContext>
+
+        {tasks.length === 0 && (
+          <p
+            className="flex flex-1 items-center justify-center text-[12.5px]"
+            style={{ color: 'var(--color-mute)' }}
           >
-            <button
-              className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 bg-black/40 w-11 h-11 rounded-full flex items-center justify-center"
-              onClick={() => setLightboxImages([])}
-            >
-              ×
-            </button>
-            {lightboxIndex > 0 && (
-              <button
-                className="absolute left-3 lg:left-8 text-white text-3xl lg:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((i) => i - 1);
-                }}
-              >
-                ‹
-              </button>
-            )}
-            <motion.img
-              key={lightboxIndex}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
-              src={lightboxImages[lightboxIndex]?.url}
-              alt=""
-              className="max-w-[90vw] lg:max-w-4xl max-h-[80vh] rounded-xl object-contain mx-14 lg:mx-20"
-              onClick={(e) => e.stopPropagation()}
-            />
-            {lightboxIndex < lightboxImages.length - 1 && (
-              <button
-                className="absolute right-3 lg:right-8 text-white text-3xl lg:text-5xl hover:text-gray-300 bg-black/40 rounded-full w-11 h-11 flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((i) => i + 1);
-                }}
-              >
-                ›
-              </button>
-            )}
-            <div className="absolute bottom-6 text-white text-sm opacity-60">
-              {lightboxIndex + 1} / {lightboxImages.length}
-            </div>
-          </motion.div>
+            Rien ici.
+          </p>
         )}
-      </AnimatePresence>
-    </div>
+      </div>
+    </section>
   );
 }

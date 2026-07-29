@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import type { User } from '@/store/auth-store';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { AuthShell } from '@/components/tf/AuthShell';
+import { AuthShell } from '@/components/glass/AuthShell';
+import { Button } from '@/components/glass/Button';
+import { Field } from '@/components/glass/Field';
+import { Alert } from '@/components/glass/Alert';
+import { AuthAside } from '@/components/glass/AuthAside';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,10 +42,8 @@ export default function LoginPage() {
       setUser(data.user);
 
       // Retour sur la page demandée avant la redirection, si le middleware en
-      // a transmis une. Lu ici plutôt qu'avec `useSearchParams`, qui imposerait
-      // d'envelopper la page dans une frontière Suspense.
-      // Seuls les chemins internes sont acceptés : une valeur comme
-      // `//exemple.com` redirigerait vers un autre site.
+      // a transmis une. Seuls les chemins internes sont acceptés : une valeur
+      // comme `//exemple.com` redirigerait vers un autre site.
       const suivant = new URLSearchParams(window.location.search).get('suivant');
       const destination =
         suivant && suivant.startsWith('/') && !suivant.startsWith('//') ? suivant : '/dashboard';
@@ -60,33 +60,35 @@ export default function LoginPage() {
       title="Bon retour"
       subtitle="Reprenez là où vous vous êtes arrêté."
       altPrompt="Pas encore de compte ?"
-      altLabel="S'inscrire"
+      altLabel="Créer un compte"
       altHref="/register"
+      aside={<AuthAside />}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        {error && (
-          <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)' }}>
-            <p className="text-red-400 text-sm">{error}</p>
-          </div>
-        )}
-        <Input
-          label="Email"
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        {error && <Alert tone="danger">{error}</Alert>}
+
+        <Field
+          label="Adresse email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="vous@exemple.com"
+          autoComplete="email"
           required
         />
-        <Input
+
+        <Field
           label="Mot de passe"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder="••••••••••"
+          autoComplete="current-password"
           required
         />
-        <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
-          Se connecter <span>→</span>
+
+        <Button type="submit" variant="primary" size="lg" loading={loading} block className="mt-1">
+          Se connecter
         </Button>
       </form>
     </AuthShell>

@@ -1,21 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
-import { Input } from '@/components/ui/Input';
-import { AppShell } from '@/components/tf/AppShell';
-import { GlassCard, TfAvatar, Icon } from '@/components/tf/atoms';
-import { CountUp } from '@/components/tf/CountUp';
-import { stagger, fadeUp } from '@/components/tf/motion';
-
-const SPARK = 'M0 18 L12 14 L24 16 L36 10 L48 12 L60 8 L72 11 L84 4 L100 6';
+import { AppShell } from '@/components/glass/AppShell';
+import { Surface } from '@/components/glass/Surface';
+import { Button } from '@/components/glass/Button';
+import { Field } from '@/components/glass/Field';
+import { Textarea } from '@/components/glass/Select';
+import { Modal } from '@/components/glass/Modal';
+import { Alert } from '@/components/glass/Alert';
+import { Icon } from '@/components/glass/Icon';
+import { AvatarStack } from '@/components/glass/Avatar';
 
 const GET_PROJECTS = gql`
   query GetProjects {
@@ -24,19 +23,20 @@ const GET_PROJECTS = gql`
       name
       description
       createdAt
+      taskCount
+      completedTaskCount
       owner {
         id
         name
         email
       }
-      taskCount
-      completedTaskCount
       members {
         id
         role
         user {
           id
           name
+          email
           avatar
         }
       }
@@ -49,292 +49,270 @@ const CREATE_PROJECT = gql`
     createProject(input: $input) {
       id
       name
-      description
     }
   }
 `;
 
-type Member = { id: string; role: string; user: { id: string; name: string; avatar?: string } };
+type Member = {
+  id: string;
+  role: string;
+  user: { id: string; name: string | null; email: string; avatar?: string | null };
+};
+
 type Project = {
   id: string;
   name: string;
   description: string | null;
   createdAt: string;
-  owner: { id: string; name: string; email: string };
   taskCount: number;
   completedTaskCount: number;
+  owner: { id: string; name: string | null; email: string };
   members: Member[];
 };
 
-const ACCENTS = ['#6366f1', '#8b5cf6', '#3b82f6', '#06b6d4', '#7c3aed', '#0ea5e9'];
-
 export default function DashboardPage() {
-  const router = useRouter();
   const { user } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  // La session vit dans un cookie httpOnly : on ne peut plus la deviner
-  // depuis le client, useRequireAuth interroge le serveur.
-  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const fetchProjects = useCallback(async () => {
+    setLoadError('');
+    try {
+      const { data } = await apolloClient.query({
+        query: GET_PROJECTS,
+        fetchPolicy: 'network-only',
+      });
+      setProjects((data as { projects: Project[] }).projects);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Chargement impossible');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (authLoading || !isAuthenticated) return;
     void fetchProjects();
-  }, [authLoading, isAuthenticated]);
-
-  const fetchProjects = async () => {
-    try {
-      const { data } = await apolloClient.query({ query: GET_PROJECTS, fetchPolicy: 'network-only' });
-      setProjects((data as { projects: Project[] }).projects);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [authLoading, isAuthenticated, fetchProjects]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError('');
     setCreating(true);
     try {
       await apolloClient.mutate({
         mutation: CREATE_PROJECT,
-        variables: { input: { name, description: desc } },
+        variables: { input: { name, description: description || undefined } },
       });
       setName('');
-      setDesc('');
-      setShowModal(false);
-      void fetchProjects();
+      setDescription('');
+      setModalOpen(false);
+      await fetchProjects();
     } catch (err) {
-      console.error(err);
+      setCreateError(err instanceof Error ? err.message : 'Création impossible');
     } finally {
       setCreating(false);
     }
   };
 
-  // Les compteurs viennent désormais du serveur, agrégés en une requête :
-  // le tableau de bord ne rapatrie plus toutes les tâches de tous les projets.
   const totalTasks = projects.reduce((acc, p) => acc + p.taskCount, 0);
   const doneTasks = projects.reduce((acc, p) => acc + p.completedTaskCount, 0);
-  const activeProjects = projects.filter((p) => p.completedTaskCount < p.taskCount);
-  const memberCount = [...new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)))].length;
+  const people = new Set(projects.flatMap((p) => p.members.map((m) => m.user.id)));
 
-  const stats = [
-    { id: 'projects', label: 'Projets actifs', value: activeProjects.length, color: '#6366f1' },
-    { id: 'tasks', label: 'Tâches totales', value: totalTasks, color: '#3b82f6' },
-    { id: 'done', label: 'Terminées', value: doneTasks, color: '#10b981' },
-    { id: 'team', label: 'Membres', value: memberCount, color: '#8b5cf6' },
-  ];
-
-  if (loading)
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--tf-text-muted)' }}>
-        Chargement...
-      </div>
-    );
+  const prenom = (user?.name ?? user?.email ?? '').split(/[\s@]/)[0];
 
   return (
-    <AppShell breadcrumb={['Dashboard']} active="dashboard">
-      {/* Greeting + CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.2, 0.7, 0.3, 1] }}
-        className="flex items-end justify-between gap-4 flex-wrap mb-6"
-      >
+    <AppShell active="dashboard" breadcrumb={[{ label: 'Projets' }]}>
+      <header className="mb-9 flex flex-wrap items-end justify-between gap-5">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold" style={{ letterSpacing: '-0.03em' }}>
-            Bonjour, {user?.name ?? user?.email}
+          <p className="tf-eyebrow mb-3">Tableau de bord</p>
+          <h1 className="tf-display text-[clamp(2rem,5vw,2.9rem)]">
+            <span className="tf-mask">
+              <span>Bonjour{prenom ? `, ${prenom}` : ''}</span>
+            </span>
           </h1>
-          <p className="mt-2 text-[15px]" style={{ color: 'var(--tf-text-muted)' }}>
-            <b style={{ color: 'var(--tf-text)' }}>{activeProjects.length} projet(s)</b> en cours.
-          </p>
         </div>
-        <Button size="lg" onClick={() => setShowModal(true)}>
-          <Icon.Plus /> Nouveau projet
+
+        <Button variant="primary" size="lg" onClick={() => setModalOpen(true)}>
+          <Icon.Plus size={16} />
+          Nouveau projet
         </Button>
-      </motion.div>
+      </header>
 
-      {/* Stats */}
-      <motion.div
-        variants={stagger(0.08)}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-8"
-      >
-        {stats.map((s) => (
-          <motion.div
-            key={s.id}
-            variants={fadeUp}
-            className="tf-panel relative overflow-hidden p-4 lg:p-5 h-full"
-            style={{ borderRadius: 'calc(24px * var(--tf-radius-scale, 1))' }}
-          >
-            <div
-              className="absolute -top-8 -right-8 w-24 h-24 pointer-events-none"
-              style={{ background: `radial-gradient(closest-side, ${s.color}66, transparent)` }}
-            />
-            <div className="flex items-start justify-between">
-              <span className="text-[13px] font-medium" style={{ color: 'var(--tf-text-muted)' }}>
-                {s.label}
-              </span>
-              <span className="w-2 h-2 rounded-full" style={{ background: s.color, boxShadow: `0 0 12px ${s.color}` }} />
-            </div>
-            <div className="mt-2 text-3xl lg:text-4xl font-bold" style={{ color: s.color, letterSpacing: '-0.03em' }}>
-              <CountUp value={s.value} />
-            </div>
-            <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="mt-2 w-full h-6 block">
-              <defs>
-                <linearGradient id={`sg-${s.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.color} stopOpacity="0.35" />
-                  <stop offset="100%" stopColor={s.color} stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d={`${SPARK} L100 24 L0 24 Z`} fill={`url(#sg-${s.id})`} />
-              <path d={SPARK} fill="none" stroke={s.color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-            </svg>
-          </motion.div>
-        ))}
-      </motion.div>
+      {/* Trois mesures, pas huit : un chiffre n'a de valeur que si on peut
+          agir dessus. */}
+      <div className="tf-cascade mb-10 grid gap-3.5 sm:grid-cols-3">
+        <Stat label="Projets" value={projects.length} />
+        <Stat label="Tâches" value={totalTasks} sub={`${doneTasks} terminée(s)`} />
+        <Stat label="Personnes" value={people.size} />
+      </div>
 
-      {/* Projects */}
-      <div className="flex items-baseline justify-between mb-4">
-        <h2 className="text-xl lg:text-2xl font-semibold" style={{ letterSpacing: '-0.015em' }}>
-          Mes projets
-        </h2>
-        <span className="text-sm" style={{ color: 'var(--tf-text-faint)' }}>
-          {projects.length} projet(s) · {totalTasks} tâches
+      <div className="mb-5 flex items-baseline gap-3">
+        <h2 className="tf-display text-[1.25rem]">Vos projets</h2>
+        <span className="h-px flex-1" style={{ background: 'var(--rim)' }} />
+        <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
+          {projects.length}
         </span>
       </div>
 
-      {projects.length === 0 ? (
-        <GlassCard style={{ padding: 48, textAlign: 'center' }}>
-          <p className="text-base" style={{ color: 'var(--tf-text-muted)' }}>
-            Aucun projet — créez-en un !
+      {loadError && <Alert tone="danger">{loadError}</Alert>}
+
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Surface key={i} radius="lg" className="h-44 animate-pulse" >
+              <span />
+            </Surface>
+          ))}
+        </div>
+      ) : projects.length === 0 ? (
+        <Surface radius="xl" panel className="p-14 text-center">
+          <p className="tf-display mb-2.5 text-[1.35rem]">Aucun projet pour l’instant</p>
+          <p className="mx-auto mb-7 max-w-sm text-[14px]" style={{ color: 'var(--color-haze)' }}>
+            Un projet contient un tableau, des tâches et les personnes qui y travaillent.
           </p>
-        </GlassCard>
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            <Icon.Plus size={16} />
+            Créer le premier
+          </Button>
+        </Surface>
       ) : (
-        <motion.div
-          variants={stagger(0.07)}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5"
-        >
-          {projects.map((project, idx) => {
-            const done = project.completedTaskCount;
-            const total = project.taskCount;
-            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            const accent = ACCENTS[idx % ACCENTS.length];
-            return (
-              <motion.div
-                key={project.id}
-                variants={fadeUp}
-                whileHover={{ y: -5 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                className="tf-card-glass cursor-pointer overflow-hidden h-full"
-                style={{ padding: 22, borderRadius: 'calc(28px * var(--tf-radius-scale, 1))' }}
-              >
-                <div className="flex flex-col h-full relative">
-                  <div
-                    className="absolute -top-12 -right-12 w-44 h-44 pointer-events-none"
-                    style={{ background: `radial-gradient(closest-side, ${accent}55, transparent)` }}
-                  />
-                  <div className="flex items-start justify-between relative">
-                    <div
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white"
-                      style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)`, boxShadow: `0 6px 14px ${accent}55` }}
-                    >
-                      <Icon.Board />
-                    </div>
-                    <span
-                      className="px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                      style={{ background: `${accent}22`, color: accent, border: `1px solid ${accent}33` }}
-                    >
-                      {pct === 100 ? 'Terminé' : 'En cours'}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-4 mb-1.5 text-[17px] font-semibold" style={{ letterSpacing: '-0.01em' }}>
-                    {project.name}
-                  </h3>
-                  <p
-                    className="text-[13px] leading-relaxed line-clamp-2"
-                    style={{ color: 'var(--tf-text-muted)', minHeight: 38 }}
-                  >
-                    {project.description || 'Pas de description.'}
-                  </p>
-
-                  <div className="mt-4">
-                    <div className="flex justify-between text-[12px] mb-1.5" style={{ color: 'var(--tf-text-muted)' }}>
-                      <span>
-                        {done}/{total} tâches
-                      </span>
-                      <span style={{ color: 'var(--tf-text)', fontWeight: 600 }}>{pct}%</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--tf-soft)' }}>
-                      <div
-                        style={{
-                          width: `${pct}%`,
-                          height: '100%',
-                          background: `linear-gradient(90deg, ${accent}, ${accent}cc)`,
-                          boxShadow: `0 0 12px ${accent}88`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    className="mt-4 pt-4 flex items-center justify-between"
-                    style={{ borderTop: '1px solid var(--tf-hairline)' }}
-                  >
-                    <div className="flex">
-                      {project.members.slice(0, 4).map((m, i) => (
-                        <div key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-                          <TfAvatar name={m.user.name} avatar={m.user.avatar} size={26} ring />
-                        </div>
-                      ))}
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: 'var(--tf-text)' }}>
-                      Ouvrir <span>→</span>
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+        <div className="tf-cascade grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {projects.map((p) => (
+            <ProjectCard key={p.id} project={p} />
+          ))}
+        </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Nouveau projet">
-        <form onSubmit={handleCreate} className="flex flex-col gap-4">
-          <Input
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Nouveau projet"
+        subtitle="Vous en serez propriétaire."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              form="form-projet"
+              type="submit"
+              loading={creating}
+              disabled={name.trim().length === 0}
+            >
+              Créer le projet
+            </Button>
+          </>
+        }
+      >
+        <form id="form-projet" onSubmit={handleCreate} className="flex flex-col gap-4">
+          {createError && <Alert tone="danger">{createError}</Alert>}
+          <Field
             label="Nom du projet"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Mon super projet"
+            placeholder="Refonte du site"
+            maxLength={120}
+            autoFocus
             required
           />
-          <Input
+          <Textarea
             label="Description"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="Description (optionnel)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="À quoi sert ce projet ?"
+            maxLength={2000}
           />
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" type="button" onClick={() => setShowModal(false)}>
-              Annuler
-            </Button>
-            <Button type="submit" loading={creating}>
-              Créer
-            </Button>
-          </div>
         </form>
       </Modal>
     </AppShell>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
+  return (
+    <Surface radius="lg" specular className="p-5">
+      <p className="tf-eyebrow mb-2.5">{label}</p>
+      <p className="tf-num text-[2.1rem] leading-none">{value}</p>
+      {sub && (
+        <p className="mt-2 text-[12.5px]" style={{ color: 'var(--color-mute)' }}>
+          {sub}
+        </p>
+      )}
+    </Surface>
+  );
+}
+
+function ProjectCard({ project }: { project: Project }) {
+  const { taskCount, completedTaskCount } = project;
+  const pct = taskCount > 0 ? Math.round((completedTaskCount / taskCount) * 100) : 0;
+
+  return (
+    <Link href={`/dashboard/projects/${project.id}`} className="group block">
+      <Surface radius="lg" specular lift="md" className="h-full p-6 transition-transform duration-300 group-hover:-translate-y-1">
+        <h3 className="mb-1.5 text-[16px] font-semibold tracking-[-0.015em]">{project.name}</h3>
+        <p
+          className="mb-6 line-clamp-2 min-h-[2.6em] text-[13px] leading-relaxed"
+          style={{ color: 'var(--color-haze)' }}
+        >
+          {project.description || 'Sans description.'}
+        </p>
+
+        <div className="mb-2 flex items-baseline justify-between">
+          <span className="tf-num text-[12px]" style={{ color: 'var(--color-mute)' }}>
+            {completedTaskCount}/{taskCount} tâches
+          </span>
+          <span className="tf-num text-[12px]" style={{ color: 'var(--color-aqua)' }}>
+            {pct}%
+          </span>
+        </div>
+
+        {/* La barre porte aussi le pourcentage en texte juste au-dessus :
+            la couleur seule ne suffirait pas. */}
+        <div
+          className="mb-5 h-1 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Avancement de ${project.name}`}
+          style={{ background: 'rgba(255,255,255,0.07)' }}
+        >
+          <span
+            className="block h-full rounded-full transition-[width] duration-500"
+            style={{
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, #2aa8b8, var(--color-aqua))',
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <AvatarStack
+            people={project.members.map((m) => ({
+              name: m.user.name ?? m.user.email,
+              avatar: m.user.avatar,
+            }))}
+            size={26}
+          />
+          <span
+            className="inline-flex items-center gap-1.5 text-[12.5px] transition-transform duration-300 group-hover:translate-x-1"
+            style={{ color: 'var(--color-aqua)' }}
+          >
+            Ouvrir <Icon.Arrow size={14} />
+          </span>
+        </div>
+      </Surface>
+    </Link>
   );
 }

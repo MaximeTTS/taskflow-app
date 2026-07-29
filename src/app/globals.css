@@ -463,6 +463,62 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Navigation et liens
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding-inline: 13px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-haze);
+  white-space: nowrap;
+  transition:
+    color 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.tf-nav-item:hover {
+  color: var(--color-frost);
+  background: rgba(160, 190, 235, 0.08);
+}
+
+.tf-nav-item[data-active] {
+  color: var(--color-frost);
+  background: rgba(160, 190, 235, 0.11);
+  box-shadow: inset 0 0 0 1px var(--rim);
+}
+
+/* Le soulignement se déploie depuis la gauche au survol : plus vivant
+   qu'un changement de couleur, plus discret qu'un fond. */
+.tf-link {
+  position: relative;
+  color: var(--color-aqua);
+  transition: color 0.2s var(--ease);
+}
+
+.tf-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.32s var(--ease-out);
+}
+
+.tf-link:hover::after {
+  transform: scaleX(1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    Champs de saisie
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -521,6 +577,92 @@ body {
   font-weight: 500;
   color: var(--color-haze);
   letter-spacing: -0.005em;
+}
+
+.tf-textarea {
+  height: auto;
+  min-height: 96px;
+  padding-block: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* La flèche native ne s'accorde pas au verre : on la masque et on pose
+   la nôtre. Le `<select>` reste natif pour tout le reste. */
+.tf-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+/* Le menu déroulant est rendu par le système : il faut lui donner des
+   couleurs lisibles, sinon il hérite du blanc par défaut. */
+.tf-select option {
+  background: #0e1626;
+  color: var(--color-frost);
+}
+
+.tf-select-arrow {
+  position: absolute;
+  z-index: 4;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-mute);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Modales
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tf-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* Le voile est flouté, pas seulement assombri : la modale devient une
+   couche de verre de plus au lieu d'un panneau posé sur un écran éteint. */
+.tf-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 5, 12, 0.62);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  animation: tf-fade 0.3s var(--ease) both;
+}
+
+@keyframes tf-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tf-modal {
+  position: relative;
+  width: 100%;
+}
+
+/* Sur mobile, la modale se colle en bas : le pouce y accède, alors qu'un
+   panneau centré oblige à remonter la main. */
+@media (max-width: 640px) {
+  .tf-modal-root {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .tf-modal {
+    max-height: 92vh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0 !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

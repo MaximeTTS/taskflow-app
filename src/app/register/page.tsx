@@ -5,18 +5,22 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import type { User } from '@/store/auth-store';
 import { PASSWORD_MIN } from '@/lib/validation';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { AuthShell } from '@/components/tf/AuthShell';
+import { AuthShell } from '@/components/glass/AuthShell';
+import { Button } from '@/components/glass/Button';
+import { Field } from '@/components/glass/Field';
+import { Alert } from '@/components/glass/Alert';
+import { AuthAside } from '@/components/glass/AuthAside';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const tooShort = password.length > 0 && password.length < PASSWORD_MIN;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,46 +53,50 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Créer un compte"
-      subtitle="Quelques secondes pour rejoindre votre première équipe."
+      subtitle="Quelques secondes pour lancer votre premier projet."
       altPrompt="Déjà un compte ?"
       altLabel="Se connecter"
       altHref="/login"
+      aside={<AuthAside />}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        {error && (
-          <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)' }}>
-            <p className="text-red-400 text-sm">{error}</p>
-          </div>
-        )}
-        <Input
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        {error && <Alert tone="danger">{error}</Alert>}
+
+        <Field
           label="Nom complet"
-          type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Maxime Turquet"
+          autoComplete="name"
         />
-        <Input
-          label="Email"
+
+        <Field
+          label="Adresse email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="vous@exemple.com"
+          autoComplete="email"
           required
         />
-        <Input
+
+        <Field
           label="Mot de passe"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder="••••••••••"
+          autoComplete="new-password"
           minLength={PASSWORD_MIN}
           required
+          // L'erreur n'apparaît qu'une fois la saisie commencée : signaler
+          // « trop court » sur un champ vide serait un reproche prématuré.
+          error={tooShort ? `Encore ${PASSWORD_MIN - password.length} caractère(s).` : undefined}
+          hint={`${PASSWORD_MIN} caractères minimum.`}
         />
-        <p className="text-[12px] -mt-1.5" style={{ color: 'var(--tf-text-faint)' }}>
-          {PASSWORD_MIN} caractères minimum.
-        </p>
-        <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
-          Créer mon compte <span>→</span>
+
+        <Button type="submit" variant="primary" size="lg" loading={loading} block className="mt-1">
+          Créer mon compte
         </Button>
       </form>
     </AuthShell>

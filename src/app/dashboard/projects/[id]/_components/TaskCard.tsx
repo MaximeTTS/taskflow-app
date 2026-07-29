@@ -1,80 +1,121 @@
+'use client';
+
 import Image from 'next/image';
-import { TfAvatar, PriorityPill } from '@/components/tf/atoms';
-import { DueDateBadge } from './DueDateBadge';
-import type { Task, TaskImage } from '../_types';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Avatar } from '@/components/glass/Avatar';
+import { PriorityPill } from '@/components/glass/Pill';
+import type { Priority } from '@/components/glass/Pill';
+import { Icon } from '@/components/glass/Icon';
+import type { Task } from '../_types';
 
-type Props = {
-  task: Task;
-  isDragging?: boolean;
-  onClick?: () => void;
-  onImageClick?: (images: TaskImage[], index: number) => void;
-};
+/** Nombre de jours restants avant l'échéance. Négatif si dépassée. */
+function daysLeft(dueDate: string): number | null {
+  // Le serveur renvoie l'échéance en millisecondes depuis l'époque, sous
+  // forme de chaîne. Une date ISO reste acceptée par sécurité.
+  const timestamp = /^\d+$/.test(dueDate) ? Number(dueDate) : Date.parse(dueDate);
+  if (!Number.isFinite(timestamp)) return null;
 
-export function TaskCard({ task, isDragging = false, onClick, onImageClick }: Props) {
+  const jour = 86_400_000;
+  const echeance = Math.floor(timestamp / jour);
+  const aujourdhui = Math.floor(Date.now() / jour);
+  return echeance - aujourdhui;
+}
+
+/** Échéance en clair, avec la couleur qui correspond à son urgence. */
+function DueBadge({ dueDate }: { dueDate: string }) {
+  const reste = daysLeft(dueDate);
+  if (reste === null) return null;
+
+  const { texte, couleur } =
+    reste < 0
+      ? { texte: `En retard de ${Math.abs(reste)} j`, couleur: 'var(--color-rose)' }
+      : reste === 0
+        ? { texte: "Aujourd'hui", couleur: 'var(--color-rose)' }
+        : reste === 1
+          ? { texte: 'Demain', couleur: 'var(--color-amber)' }
+          : reste <= 7
+            ? { texte: `Dans ${reste} j`, couleur: 'var(--color-amber)' }
+            : {
+                texte: new Date(
+                  /^\d+$/.test(dueDate) ? Number(dueDate) : dueDate,
+                ).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+                couleur: 'var(--color-mute)',
+              };
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: couleur }}>
+      <Icon.Clock size={12} />
+      {texte}
+    </span>
+  );
+}
+
+export function TaskCard({ task, onOpen }: { task: Task; onOpen: (task: Task) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  });
+
   return (
     <div
-      onClick={onClick}
-      className={`tf-card-glass w-full p-3.5 ${isDragging ? '' : 'tf-hover-card'}`}
+      ref={setNodeRef}
       style={{
-        borderRadius: 'calc(22px * var(--tf-radius-scale, 1))',
-        boxShadow: isDragging ? 'var(--tf-card-shadow-hover)' : undefined,
-        color: 'var(--tf-text)',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.35 : 1,
       }}
+      {...attributes}
+      {...listeners}
+      className="tf-task g g-raised g-lift touch-none"
     >
-      <p className="text-[13.5px] font-semibold leading-snug break-words" style={{ letterSpacing: '-0.01em' }}>
-        {task.title}
-      </p>
-      {task.description && (
-        <p
-          className="text-[12px] mt-1.5 leading-relaxed break-words whitespace-pre-line"
-          style={{ color: 'var(--tf-text-muted)' }}
-        >
-          {task.description}
-        </p>
-      )}
-      {task.images.length > 0 && (
-        <div className="flex gap-1 mt-2.5 flex-wrap">
-          {task.images.slice(0, 3).map((img, i) => (
-            <Image
-              key={img.id}
-              src={img.url}
-              alt=""
-              width={64}
-              height={64}
-              // Vignette de 64 px : sans cela, l image d origine, jusqu a
-              // 1200 px de large, etait telechargee en entier.
-              sizes="64px"
-              className="w-16 h-16 rounded-xl object-cover"
-              style={{ border: '1px solid var(--tf-hairline)' }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onImageClick?.(task.images, i);
-              }}
-            />
-          ))}
-          {task.images.length > 3 && (
-            <div
-              className="w-16 h-16 rounded-xl flex items-center justify-center text-xs"
-              style={{ background: 'var(--tf-soft)', color: 'var(--tf-text-muted)' }}
-            >
-              +{task.images.length - 3}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="mt-3">
-        <DueDateBadge dueDate={task.dueDate} />
-      </div>
-      <div className="flex items-center justify-between mt-1 gap-2">
-        <PriorityPill priority={task.priority} />
-        {task.assignee ? (
-          <TfAvatar name={task.assignee.name} avatar={task.assignee.avatar} size={24} ring={false} />
-        ) : (
-          <span className="text-[11px]" style={{ color: 'var(--tf-text-faint)' }}>
-            Non assigné
-          </span>
+      <span className="g-refract" />
+      <span className="g-tint" />
+      <span className="g-rim" />
+
+      {/* Un bouton, pas un div cliquable : la tâche s'ouvre aussi au clavier. */}
+      <button
+        type="button"
+        onClick={() => onOpen(task)}
+        className="g-body w-full cursor-pointer p-3.5 text-left"
+      >
+        <p className="mb-2.5 text-[13.5px] font-medium leading-snug">{task.title}</p>
+
+        {task.images.length > 0 && (
+          <div className="mb-2.5 flex gap-1.5">
+            {task.images.slice(0, 3).map((img) => (
+              <Image
+                key={img.id}
+                src={img.url}
+                alt=""
+                width={44}
+                height={44}
+                sizes="44px"
+                className="h-11 w-11 rounded-[8px] object-cover"
+                style={{ boxShadow: 'inset 0 0 0 1px var(--rim)' }}
+              />
+            ))}
+            {task.images.length > 3 && (
+              <span
+                className="tf-num flex h-11 w-11 items-center justify-center rounded-[8px] text-[11px]"
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-mute)' }}
+              >
+                +{task.images.length - 3}
+              </span>
+            )}
+          </div>
         )}
-      </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <PriorityPill priority={(task.priority as Priority) ?? 'MEDIUM'} />
+          {task.assignee && <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size={22} />}
+        </div>
+
+        {task.dueDate && (
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--rim)' }}>
+            <DueBadge dueDate={task.dueDate} />
+          </div>
+        )}
+      </button>
     </div>
   );
 }
