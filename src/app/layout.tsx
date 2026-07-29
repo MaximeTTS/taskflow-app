@@ -1,30 +1,16 @@
-import type { Metadata, Viewport } from 'next';
-import { headers } from 'next/headers';
-import { Inter, Space_Grotesk } from 'next/font/google';
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { ApolloClientProvider } from '@/components/providers/apollo-provider';
-import { Aura } from '@/components/motion/Aura';
-import { PageVeil } from '@/components/motion/PageVeil';
-import { THEME_COLOR } from '@/lib/theme';
-import { readThemeChoice } from '@/lib/theme-server';
 import './globals.css';
 
-/** Inter en texte courant : grande hauteur d'x, donc lisible en petit corps. */
-const inter = Inter({
-  variable: '--font-inter',
+const geistSans = Geist({
+  variable: '--font-geist-sans',
   subsets: ['latin'],
-  display: 'swap',
 });
 
-/**
- * Space Grotesk sur trois usages seulement — titres de page, noms de
- * colonne, chiffres. C'est cette restriction qui l'empêche de devenir
- * décorative. Ses chiffres tabulaires évitent que les compteurs fassent
- * bouger la mise en page en changeant de valeur.
- */
-const grotesk = Space_Grotesk({
-  variable: '--font-grotesk',
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
   subsets: ['latin'],
-  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -32,59 +18,11 @@ export const metadata: Metadata = {
   description: 'Gestionnaire de projets collaboratif',
 };
 
-/**
- * Sans choix explicite, le serveur ne peut pas connaître le réglage
- * système : on rend les deux couleurs sous leur `media` et le navigateur
- * tranche. Avec un choix, une seule valeur suffit.
- */
-export async function generateViewport(): Promise<Viewport> {
-  const choice = await readThemeChoice();
-
-  if (choice) return { themeColor: THEME_COLOR[choice] };
-
-  return {
-    themeColor: [
-      { media: '(prefers-color-scheme: light)', color: THEME_COLOR.light },
-      { media: '(prefers-color-scheme: dark)', color: THEME_COLOR.dark },
-    ],
-  };
-}
-
-/**
- * Lire `headers()` bascule tout l'arbre en rendu dynamique, et c'est
- * délibéré : la CSP porte un nonce régénéré à chaque requête (voir
- * src/proxy.ts), or une page pré-rendue au build embarque un HTML figé,
- * donc sans nonce. Le navigateur bloquerait alors les scripts que Next
- * injecte lui-même et l'application ne démarrerait pas.
- *
- * Ce rendu dynamique paie ici une seconde fois : il permet de lire le
- * cookie de thème et d'écrire `data-theme` directement dans le HTML.
- * Aucun script anti-flash n'est nécessaire — ce qui tombe bien, puisque
- * `script-src` n'accepte pas `unsafe-inline`.
- */
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  await headers();
-  const theme = await readThemeChoice();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Les variables de police vont sur <html>, pas sur <body> : le bloc
-    // @theme de Tailwind résout `--font-sans` au niveau de :root, où une
-    // variable déclarée sur body n'est pas visible.
-    //
-    // Sans choix explicite, aucun attribut n'est posé : les rôles restent
-    // sous le contrôle de `prefers-color-scheme`, en CSS pur.
-    <html
-      lang="fr"
-      data-theme={theme ?? undefined}
-      className={`${inter.variable} ${grotesk.variable}`}
-    >
-      <body>
-        <Aura />
-        <PageVeil />
-        {/* Le contenu passe au-dessus de l'ambiance, qui vit en z-index 0. */}
-        <ApolloClientProvider>
-          <div className="relative z-[1]">{children}</div>
-        </ApolloClientProvider>
+    <html lang="fr">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ApolloClientProvider>{children}</ApolloClientProvider>
       </body>
     </html>
   );

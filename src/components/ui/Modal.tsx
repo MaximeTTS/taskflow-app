@@ -1,97 +1,59 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
-import { IconButton } from './Button';
-import { Icon } from './Icon';
+import { useEffect } from 'react';
 
-type Props = {
+type ModalProps = {
   open: boolean;
   onClose: () => void;
   title: string;
-  /** Description courte sous le titre. */
-  subtitle?: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  width?: number;
+  children: React.ReactNode;
 };
 
-/**
- * Modale.
- *
- * Le voile derrière elle est flouté et non seulement assombri : la modale
- * se pose sur une couche atténuée plutôt que sur un écran éteint.
- *
- * Trois comportements que les modales oublient souvent : Échap referme, le
- * focus part sur le panneau à l'ouverture et revient à son point de départ
- * à la fermeture, et le défilement de la page est bloqué.
- */
-export function Modal({ open, onClose, title, subtitle, children, footer, width = 560 }: Props) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
-
+export function Modal({ open, onClose, title, children }: ModalProps) {
   useEffect(() => {
-    if (!open) return;
-
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-
-    const onKeyDown = (e: KeyboardEvent) => {
+    const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    document.addEventListener('keydown', onKeyDown);
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      // Rendre le focus évite que la navigation clavier reparte du haut
-      // de la page après chaque fermeture.
-      previousFocus.current?.focus?.();
-    };
+    if (open) document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="tf-modal-root" role="presentation">
-      <div className="tf-veil" onClick={onClose} />
-
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
       <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        className="tf-modal flex max-h-[88vh] flex-col"
-        style={{ maxWidth: width }}
+        className="bg-[#16161f] border border-[#2a2a3a] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-4 px-7 pt-6 pb-4">
-          <div>
-            <h2 className="tf-display text-[20px]">{title}</h2>
-            {subtitle && (
-              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-2)' }}>
-                {subtitle}
-              </p>
-            )}
-          </div>
-          <IconButton label="Fermer" onClick={onClose}>
-            <Icon.Close size={16} />
-          </IconButton>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-6">{children}</div>
-
-        {footer && (
-          <footer
-            className="flex items-center justify-end gap-2.5 px-7 py-4"
-            style={{ borderTop: '1px solid var(--border)' }}
+        {/* Header — always visible */}
+        <div className="flex items-center justify-between p-4 sm:p-6 pb-0 sm:pb-0 shrink-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-[#f0f0ff] pr-4">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-[#55556a] hover:text-[#f0f0ff] transition-colors text-2xl leading-none p-1 -mr-1"
           >
-            {footer}
-          </footer>
-        )}
+            ×
+          </button>
+        </div>
+        {/* Content — scrollable */}
+        <div className="p-4 sm:p-6 pt-4 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

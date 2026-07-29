@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { apolloClient } from '@/lib/apollo-client';
 
-export type User = {
+type User = {
   id: string;
   email: string;
   name: string | null;
@@ -11,64 +10,55 @@ export type User = {
 type AuthStore = {
   user: User | null;
   isAuthenticated: boolean;
-  /** Vrai tant que la session n'a pas ete verifiee aupres du serveur. */
-  isLoading: boolean;
-
+  /** `false` tant que la session n'a pas ete verifiee aupres du serveur. */
+  ready: boolean;
   setUser: (user: User) => void;
-  logout: () => Promise<void>;
-  /** Rehydrate la session depuis le cookie, avec rafraichissement si besoin. */
   hydrate: () => Promise<void>;
+  logout: () => Promise<void>;
 };
 
 /**
- * Le jeton n'est plus stocke ici, ni nulle part cote client : il vit dans un
- * cookie `httpOnly` que le JavaScript ne peut pas lire. Ce store ne conserve
- * que l'identite affichable, rechargee depuis /api/auth/me.
+ * Session cote client.
+ *
+ * Il n'y a plus de jeton ici, et c'est le coeur du changement : l'acces et le
+ * rafraichissement vivent dans des cookies `httpOnly` que le JavaScript de la
+ * page ne peut pas lire. Un jeton en `localStorage` etait lisible par le
+ * moindre script tiers ou extension — c'est precisement ce que la refonte de
+ * l'authentification a ferme.
+ *
+ * Ce store ne garde donc que l'identite affichable, et il l'obtient du
+ * serveur. `ready` distingue « pas connecte » de « pas encore verifie » :
+ * sans lui, chaque page protegee redirigerait vers la connexion pendant le
+ * premier rendu, avant meme d'avoir demande.
  */
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   isAuthenticated: false,
-  isLoading: true,
+  ready: false,
 
-  setUser: (user: User) => set({ user, isAuthenticated: true, isLoading: false }),
-
-  logout: async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
-    } catch {
-      // La session serveur peut deja etre morte ; on nettoie le client quoi
-      // qu'il arrive.
-    }
-    set({ user: null, isAuthenticated: false, isLoading: false });
-    await apolloClient.clearStore().catch(() => {});
-  },
+  setUser: (user: User) => set({ user, isAuthenticated: true, ready: true }),
 
   hydrate: async () => {
-    async function fetchMe(): Promise<User | null> {
-      const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
-      if (!response.ok) return null;
-      const data = (await response.json()) as { user: User | null };
-      return data.user;
-    }
-
     try {
-      let user = await fetchMe();
-
-      // Acces expire mais session encore valable : on renouvelle puis on
-      // redemande, plutot que de renvoyer l'utilisateur vers la connexion.
-      if (!user) {
-        const refreshed = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          credentials: 'same-origin',
-        });
-        if (refreshed.ok) {
-          user = await fetchMe();
-        }
+      const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      if (!response.ok) {
+        set({ user: null, isAuthenticated: false, ready: true });
+        return;
       }
-
-      set({ user, isAuthenticated: Boolean(user), isLoading: false });
+      const data = (await response.json()) as { user: User };
+      set({ user: data.user, isAuthenticated: true, ready: true });
     } catch {
-      set({ user: null, isAuthenticated: false, isLoading: false });
+      set({ user: null, isAuthenticated: false, ready: true });
+    }
+  },
+
+  logout: async () => {
+    // La deconnexion passe par le serveur : lui seul peut effacer un cookie
+    // `httpOnly`, et lui seul peut revoquer la session en base.
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } finally {
+      set({ user: null, isAuthenticated: false, ready: true });
     }
   },
 }));

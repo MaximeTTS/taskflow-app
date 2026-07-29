@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag';
 
 export const GET_PROJECT = gql`
-  query GetProject($id: ID!, $limit: Int, $offset: Int) {
+  query GetProject($id: ID!) {
     project(id: $id) {
       id
       name
@@ -21,9 +21,7 @@ export const GET_PROJECT = gql`
           avatar
         }
       }
-      tasks(limit: $limit, offset: $offset) {
-        totalCount
-        hasMore
+      tasks {
         items {
           id
           title
@@ -51,15 +49,6 @@ export const GET_PROJECT = gql`
     }
   }
 `;
-
-/**
- * Tâches chargées par page.
- *
- * Plus généreux que sur le tableau de bord : un tableau Kanban perd son sens
- * si l'on ne voit qu'un fragment de chaque colonne. Le serveur plafonne à 100,
- * et le bouton « charger plus » prend le relais au-delà.
- */
-export const TASKS_PAGE = 100;
 
 export const CREATE_TASK = gql`
   mutation CreateTask($input: CreateTaskInput!) {

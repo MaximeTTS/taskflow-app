@@ -1,32 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { gql } from 'graphql-tag';
 import { apolloClient } from '@/lib/apollo-client';
 import { useAuthStore } from '@/store/auth-store';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { checkPassword } from '@/lib/password-strength';
-import { AppShell } from '@/components/ui/AppShell';
-import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
-import { Field } from '@/components/ui/Field';
-import { PasswordField } from '@/components/ui/PasswordField';
-import { Alert } from '@/components/ui/Alert';
+import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/ui/Avatar';
-import { Icon } from '@/components/ui/Icon';
-
-const GET_ME = gql`
-  query Me {
-    me {
-      id
-      name
-      email
-      avatar
-      emailVerified
-      pendingEmail
-    }
-  }
-`;
+import {
+  Sidebar,
+  SidebarProvider,
+  MobileMenuButton,
+  SidebarIcons,
+} from '@/components/layout/Sidebar';
+import { motion } from 'framer-motion';
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -34,22 +22,6 @@ const UPDATE_PROFILE = gql`
       id
       name
       email
-      avatar
-      emailVerified
-      pendingEmail
-    }
-  }
-`;
-
-const CANCEL_EMAIL_CHANGE = gql`
-  mutation CancelEmailChange {
-    cancelEmailChange {
-      id
-      name
-      email
-      avatar
-      emailVerified
-      pendingEmail
     }
   }
 `;
@@ -71,128 +43,119 @@ const UPDATE_AVATAR = gql`
   }
 `;
 
-type Me = {
-  id: string;
-  name: string | null;
-  email: string;
-  avatar?: string | null;
-  emailVerified?: boolean;
-  /** Adresse demandée mais pas encore confirmée. */
-  pendingEmail?: string | null;
+const GET_ME = gql`
+  query Me {
+    me {
+      id
+      name
+      email
+      avatar
+    }
+  }
+`;
+
+type MeResult = { id: string; name: string; email: string; avatar?: string };
+
+// ─── Animation variants ───
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
 };
 
-/** Doit rester aligné sur MAX_IMAGE_BYTES côté serveur. */
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const fadeInUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
 
 export default function ProfilePage() {
-  const { user, setUser } = useAuthStore();
-  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+  const router = useRouter();
+  const { user, setUser, logout } = useAuthStore();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
-
-  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
-  const [annulation, setAnnulation] = useState(false);
-
   const [savingProfile, setSavingProfile] = useState(false);
-  const [profileMessage, setProfileMessage] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarError, setAvatarError] = useState('');
-  const fileInput = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchMe = useCallback(async () => {
+  // `fetchMe` interroge deja le serveur : s'il repond « non autorise », c'est
+  // qu'il n'y a pas de session. Un test sur `localStorage` ne dirait plus rien,
+  // les jetons etant desormais dans des cookies `httpOnly`.
+  useEffect(() => {
+    void (async () => {
+      await useAuthStore.getState().hydrate();
+      if (!useAuthStore.getState().isAuthenticated) {
+        router.push('/login');
+        return;
+      }
+      await fetchMe();
+    })();
+  }, []);
+
+  const fetchMe = async () => {
     try {
       const { data } = await apolloClient.query({ query: GET_ME, fetchPolicy: 'network-only' });
-      const me = (data as { me: Me }).me;
+      const me = (data as { me: MeResult }).me;
       setName(me.name ?? '');
       setEmail(me.email);
       setAvatar(me.avatar ?? null);
-      setPendingEmail(me.pendingEmail ?? null);
-    } catch {
-      setProfileError('Impossible de charger votre profil.');
-    }
-  }, []);
-
-  /** Abandonne un changement d'adresse : le lien encore valable cesse de l'être. */
-  const handleCancelEmailChange = async () => {
-    setProfileError('');
-    setAnnulation(true);
-    try {
-      const { data } = await apolloClient.mutate({ mutation: CANCEL_EMAIL_CHANGE });
-      const updated = (data as { cancelEmailChange: Me }).cancelEmailChange;
-      setPendingEmail(null);
-      setEmail(updated.email);
-      setProfileMessage('Changement d’adresse annulé.');
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : 'Annulation impossible');
-    } finally {
-      setAnnulation(false);
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    void fetchMe();
-  }, [authLoading, isAuthenticated, fetchMe]);
-
-  const handleProfile = async (e: React.FormEvent) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfileMessage('');
-    setProfileError('');
     setSavingProfile(true);
+    setProfileSuccess('');
+    setProfileError('');
     try {
       const { data } = await apolloClient.mutate({
         mutation: UPDATE_PROFILE,
         variables: { input: { name, email } },
       });
-      const updated = (data as { updateProfile: Me }).updateProfile;
-      setUser({ ...updated, avatar: updated.avatar ?? null });
-      setPendingEmail(updated.pendingEmail ?? null);
-
-      // Le champ reprend l'adresse réellement portée par le compte : laisser
-      // la nouvelle affichée donnerait à croire qu'elle est déjà en vigueur.
-      setEmail(updated.email);
-
-      // Formulé au présent et non au passé : ce champ dit qu'une confirmation
-      // est en attente, pas qu'un email vient forcément de partir — enregistrer
-      // seulement son nom pendant qu'un changement dort ne déclenche aucun envoi.
-      setProfileMessage(
-        updated.pendingEmail
-          ? `Profil enregistré. ${updated.pendingEmail} reste à confirmer.`
-          : 'Profil enregistré.',
-      );
+      const updated = (data as { updateProfile: MeResult }).updateProfile;
+      setUser(updated);
+      setProfileSuccess('Profil mis à jour !');
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : 'Enregistrement impossible');
+      setProfileError(err instanceof Error ? err.message : 'Une erreur est survenue');
     } finally {
       setSavingProfile(false);
     }
   };
 
-  const handlePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordMessage('');
+    setPasswordSuccess('');
     setPasswordError('');
-
     if (newPassword !== confirmPassword) {
-      setPasswordError('Les deux mots de passe ne correspondent pas.');
+      setPasswordError('Les mots de passe ne correspondent pas');
       return;
     }
-    const verdict = checkPassword(newPassword, { email: user?.email, name: user?.name ?? undefined });
-    if (!verdict.ok) {
-      setPasswordError(verdict.reason);
+    if (newPassword.length < 6) {
+      setPasswordError('Le mot de passe doit faire au moins 6 caractères');
       return;
     }
-
     setSavingPassword(true);
     try {
       await apolloClient.mutate({
@@ -202,230 +165,260 @@ export default function ProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      // Le serveur révoque toutes les sessions : le dire évite de croire à
-      // un bug quand un autre appareil se retrouve déconnecté.
-      setPasswordMessage('Mot de passe modifié. Vos autres appareils ont été déconnectés.');
+      setPasswordSuccess('Mot de passe modifié !');
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : 'Modification impossible');
+      setPasswordError(err instanceof Error ? err.message : 'Une erreur est survenue');
     } finally {
       setSavingPassword(false);
     }
   };
 
-  const handleAvatar = async (file: File) => {
-    setAvatarError('');
-
-    // Contrôle côté client en plus du serveur : inutile d'envoyer 20 Mo
-    // pour se les faire refuser.
-    if (file.size > MAX_AVATAR_BYTES) {
-      setAvatarError('Image trop lourde. 5 Mo maximum.');
-      return;
-    }
-    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
-      setAvatarError('Formats acceptés : PNG, JPEG, WebP, GIF.');
-      return;
-    }
-
+  const handleUploadAvatar = async (file: File) => {
     setUploadingAvatar(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
+        reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-
       const { data } = await apolloClient.mutate({
         mutation: UPDATE_AVATAR,
         variables: { base64Image: base64 },
       });
-      const updated = (data as { updateAvatar: Me }).updateAvatar;
+      const updated = (data as { updateAvatar: MeResult }).updateAvatar;
       setAvatar(updated.avatar ?? null);
-      setUser({ ...updated, avatar: updated.avatar ?? null });
+      const userToSave = {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        avatar: updated.avatar ?? null,
+      };
+      setUser(userToSave);
     } catch (err) {
-      setAvatarError(err instanceof Error ? err.message : 'Envoi impossible');
+      console.error(err);
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  const displayName = name || user?.name || email || '?';
+  const navItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: SidebarIcons.dashboard },
+    { label: 'Profil', path: '/profile', icon: SidebarIcons.profile, active: true },
+    {
+      label: 'Déconnexion',
+      icon: SidebarIcons.logout,
+      variant: 'danger' as const,
+      onClick: () => {
+        logout();
+        router.push('/login');
+      },
+    },
+  ];
 
   return (
-    <AppShell active="profile" breadcrumb={[{ label: 'Profil' }]}>
-      <header className="mb-9">
-        <p className="tf-eyebrow mb-3">Votre compte</p>
-        <h1 className="tf-display text-[clamp(2rem,5vw,2.9rem)]">
-          <span >
-            <span>Profil</span>
-          </span>
-        </h1>
-      </header>
+    <SidebarProvider>
+      <div className="min-h-screen bg-[#0a0a0f] flex">
+        <Sidebar navItems={navItems} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
-        {/* ── Identité ────────────────────────────────────────── */}
-        <Surface radius="xl" className="h-fit p-7 text-center">
-          <div className="mb-5 inline-block">
-            <Avatar name={displayName} avatar={avatar} size={92} />
+        <main className="lg:ml-60 flex-1 flex flex-col items-center py-6 sm:py-8 lg:py-10 px-4 sm:px-6 lg:px-8">
+          {/* Header mobile */}
+          <div className="w-full max-w-2xl mb-6">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={fadeIn}
+              transition={{ duration: 0.3 }}
+              className="flex items-center gap-3"
+            >
+              <MobileMenuButton />
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#f0f0ff]">Profil</h1>
+                <p className="text-sm sm:text-base text-[#8888aa] mt-1">
+                  Gérez vos informations personnelles
+                </p>
+              </div>
+            </motion.div>
           </div>
 
-          <p className="mb-1 text-[16px] font-semibold tracking-[-0.015em]">{displayName}</p>
-          <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
-            {email}
-          </p>
-
-          {avatarError && (
-            <div className="mb-4">
-              <Alert tone="danger">{avatarError}</Alert>
-            </div>
-          )}
-
-          <Button
-            variant="neutral"
-            block
-            loading={uploadingAvatar}
-            onClick={() => fileInput.current?.click()}
+          {/* Cards container with stagger */}
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={staggerContainer}
+            className="w-full max-w-2xl flex flex-col gap-5 sm:gap-6"
           >
-            <Icon.Image size={16} />
-            Changer la photo
-          </Button>
+            {/* Avatar + infos */}
+            <motion.div
+              variants={fadeInUp}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 sm:p-6 flex items-center gap-4 sm:gap-5"
+            >
+              <div className="relative shrink-0">
+                {avatar ? (
+                  <img
+                    src={avatar}
+                    alt="avatar"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-[#2a2a3a]"
+                  />
+                ) : (
+                  <Avatar name={user?.name ?? user?.email ?? 'U'} size="lg" />
+                )}
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 bg-indigo-500 hover:bg-indigo-600 rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                >
+                  {uploadingAvatar ? (
+                    <svg
+                      className="animate-spin w-3 h-3 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-3 h-3 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) void handleUploadAvatar(e.target.files[0]);
+                  }}
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-semibold text-[#f0f0ff] truncate">
+                  {user?.name ?? 'Sans nom'}
+                </div>
+                <div className="text-sm text-[#8888aa] mt-0.5 truncate">{user?.email}</div>
+                <div className="text-xs text-[#55556a] mt-1">
+                  Cliquez sur l&apos;avatar pour le modifier
+                </div>
+              </div>
+            </motion.div>
 
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleAvatar(file);
-              // Réinitialisé pour que choisir deux fois le même fichier
-              // déclenche bien un second envoi.
-              e.target.value = '';
-            }}
-          />
-        </Surface>
-
-        <div className="flex flex-col gap-4">
-          {/* ── Informations ──────────────────────────────────── */}
-          <Surface radius="xl" className="p-7">
-            <h2 className="tf-display mb-1 text-[1.2rem]">Informations</h2>
-            <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
-              Votre nom apparaît sur les tâches que vous créez.
-            </p>
-
-            <form onSubmit={handleProfile} className="flex flex-col gap-4">
-              {profileError && <Alert tone="danger">{profileError}</Alert>}
-              {profileMessage && <Alert tone="success">{profileMessage}</Alert>}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  label="Nom complet"
+            {/* Formulaire profil */}
+            <motion.div
+              variants={fadeInUp}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 sm:p-6"
+            >
+              <h2 className="text-base font-semibold text-[#f0f0ff] mb-5">
+                Informations générales
+              </h2>
+              <form onSubmit={handleUpdateProfile} className="flex flex-col gap-4">
+                {profileSuccess && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
+                    <p className="text-green-400 text-sm">{profileSuccess}</p>
+                  </div>
+                )}
+                {profileError && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+                    <p className="text-red-400 text-sm">{profileError}</p>
+                  </div>
+                )}
+                <Input
+                  label="Nom"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  maxLength={80}
-                  autoComplete="name"
+                  placeholder="Votre nom"
                 />
-                <Field
-                  label="Adresse email"
+                <Input
+                  label="Email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  placeholder="votre@email.com"
                   required
-                  hint="Changer d’adresse demande une confirmation par email."
                 />
-              </div>
-
-              {/* Un changement d'adresse ne s'applique qu'après confirmation :
-                  le dire évite de croire que rien ne s'est passé. */}
-              {pendingEmail && (
-                <div
-                  className="tf-in rounded-[var(--r-1)] px-4 py-3.5"
-                  style={{
-                    background: 'color-mix(in oklab, var(--info-text) 9%, transparent)',
-                    boxShadow:
-                      'inset 0 0 0 1px color-mix(in oklab, var(--info-text) 26%, transparent)',
-                  }}
-                >
-                  <p className="text-[13.5px]" style={{ color: 'var(--info-text)' }}>
-                    En attente de confirmation : <strong>{pendingEmail}</strong>
-                  </p>
-                  <p className="mt-1.5 text-[12.5px]" style={{ color: 'var(--text-2)' }}>
-                    Votre compte garde <strong>{email}</strong> tant que le lien envoyé à la
-                    nouvelle adresse n’a pas été ouvert. Le lien expire au bout de 24 heures.
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-3"
-                    loading={annulation}
-                    onClick={() => void handleCancelEmailChange()}
-                  >
-                    Annuler ce changement
+                <div className="flex justify-end">
+                  <Button type="submit" loading={savingProfile}>
+                    Enregistrer
                   </Button>
                 </div>
-              )}
+              </form>
+            </motion.div>
 
-              <div>
-                <Button type="submit" variant="primary" loading={savingProfile}>
-                  Enregistrer
-                </Button>
-              </div>
-            </form>
-          </Surface>
-
-          {/* ── Mot de passe ──────────────────────────────────── */}
-          <Surface radius="xl" className="p-7">
-            <h2 className="tf-display mb-1 text-[1.2rem]">Mot de passe</h2>
-            <p className="mb-6 text-[13px]" style={{ color: 'var(--text-2)' }}>
-              Le modifier déconnecte tous vos autres appareils.
-            </p>
-
-            <form onSubmit={handlePassword} className="flex flex-col gap-4">
-              {passwordError && <Alert tone="danger">{passwordError}</Alert>}
-              {passwordMessage && <Alert tone="success">{passwordMessage}</Alert>}
-
-              <Field
-                label="Mot de passe actuel"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <PasswordField
-                  label="Nouveau mot de passe"
-                  value={newPassword}
-                  onChange={setNewPassword}
-                  context={{ email: user?.email, name: user?.name ?? undefined }}
+            {/* Formulaire mot de passe */}
+            <motion.div
+              variants={fadeInUp}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="bg-[#16161f] border border-[#2a2a3a] rounded-xl p-5 sm:p-6"
+            >
+              <h2 className="text-base font-semibold text-[#f0f0ff] mb-5">
+                Changer le mot de passe
+              </h2>
+              <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+                {passwordSuccess && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
+                    <p className="text-green-400 text-sm">{passwordSuccess}</p>
+                  </div>
+                )}
+                {passwordError && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+                    <p className="text-red-400 text-sm">{passwordError}</p>
+                  </div>
+                )}
+                <Input
+                  label="Mot de passe actuel"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
                   required
                 />
-                <Field
-                  label="Confirmation"
+                <Input
+                  label="Nouveau mot de passe"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+                <Input
+                  label="Confirmer le mot de passe"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  error={
-                    confirmPassword.length > 0 && confirmPassword !== newPassword
-                      ? 'Ne correspond pas.'
-                      : undefined
-                  }
+                  placeholder="••••••••"
                   required
                 />
-              </div>
-
-              <div>
-                <Button type="submit" variant="primary" loading={savingPassword}>
-                  Modifier le mot de passe
-                </Button>
-              </div>
-            </form>
-          </Surface>
-        </div>
+                <div className="flex justify-end">
+                  <Button type="submit" loading={savingPassword}>
+                    Changer le mot de passe
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        </main>
       </div>
-    </AppShell>
+    </SidebarProvider>
   );
 }

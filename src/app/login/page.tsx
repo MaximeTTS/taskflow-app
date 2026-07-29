@@ -1,58 +1,37 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import type { User } from '@/store/auth-store';
-import { AuthShell } from '@/components/ui/AuthShell';
 import { Button } from '@/components/ui/Button';
-import { Field } from '@/components/ui/Field';
-import { Alert } from '@/components/ui/Alert';
-import { AuthAside } from '@/components/ui/AuthAside';
+import { Input } from '@/components/ui/Input';
+import Link from 'next/link';
 
+type User = { id: string; email: string; name: string | null; avatar?: string | null };
+
+/**
+ * Connexion.
+ *
+ * La mutation GraphQL `login` n'existe plus : elle renvoyait un jeton que le
+ * client stockait, donc lisible par n'importe quel script de la page. La
+ * route REST pose desormais deux cookies `httpOnly` et ne renvoie que
+ * l'identite affichable.
+ */
 export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Vrai quand le compte existe mais que son adresse n'est pas confirmée.
-  // Distingué d'une erreur ordinaire parce que la suite à donner est
-  // différente : ce n'est pas au mot de passe qu'il faut revenir.
-  const [aConfirmer, setAConfirmer] = useState(false);
-  const [renvoi, setRenvoi] = useState('');
-  const [renvoiEnCours, setRenvoiEnCours] = useState(false);
-
-  const handleRenvoi = async () => {
-    setRenvoi('');
-    setRenvoiEnCours(true);
-    try {
-      const response = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ email }),
-      });
-      const data = (await response.json()) as { message?: string };
-      setRenvoi(data.message ?? 'Si un lien pouvait être envoyé, il l’a été.');
-    } catch {
-      setRenvoi('Impossible de joindre le serveur');
-    } finally {
-      setRenvoiEnCours(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setAConfirmer(false);
-    setRenvoi('');
+    setNeedsVerification(false);
     setLoading(true);
     try {
-      // La connexion passe par une route REST : elle seule peut poser le
-      // cookie httpOnly qui portera la session.
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,82 +39,89 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = (await response.json()) as { user?: User; error?: string; code?: string };
+      const data = (await response.json()) as {
+        user?: User;
+        error?: string;
+        code?: string;
+      };
 
-      if (!response.ok || !data.user) {
-        setError(data.error ?? 'Une erreur est survenue');
-        setAConfirmer(data.code === 'EMAIL_NOT_VERIFIED');
+      if (!response.ok) {
+        // Une adresse non confirmee n'est pas une erreur de saisie : on
+        // propose le geste utile plutot que de renvoyer au formulaire.
+        if (data.code === 'EMAIL_NOT_VERIFIED') setNeedsVerification(true);
+        setError(data.error ?? 'Email ou mot de passe incorrect');
         return;
       }
 
-      setUser(data.user);
-
-      // Retour sur la page demandée avant la redirection, si le middleware en
-      // a transmis une. Seuls les chemins internes sont acceptés : une valeur
-      // comme `//exemple.com` redirigerait vers un autre site.
-      const suivant = new URLSearchParams(window.location.search).get('suivant');
-      const destination =
-        suivant && suivant.startsWith('/') && !suivant.startsWith('//') ? suivant : '/dashboard';
-      router.push(destination);
+      if (data.user) setUser(data.user);
+      router.push('/dashboard');
     } catch {
-      setError('Impossible de joindre le serveur');
+      setError('Le serveur est injoignable. Reessayez dans un instant.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthShell
-      title="Bon retour"
-      subtitle="Reprenez là où vous vous êtes arrêté."
-      altPrompt="Pas encore de compte ?"
-      altLabel="Créer un compte"
-      altHref="/register"
-      aside={<AuthAside />}
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-        {/* Une adresse à confirmer n'est pas une erreur de saisie : le ton
-            « info » évite de faire chercher une faute dans le mot de passe. */}
-        {error && <Alert tone={aConfirmer ? 'info' : 'danger'}>{error}</Alert>}
+    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="text-2xl font-bold text-[#f0f0ff] mb-2">
+            Task<span className="text-indigo-400">Flow</span>
+          </div>
+          <p className="text-sm text-[#8888aa]">Connectez-vous à votre compte</p>
+        </div>
 
-        {aConfirmer && !renvoi && (
-          <Button variant="ghost" onClick={() => void handleRenvoi()} loading={renvoiEnCours}>
-            Renvoyer le lien de confirmation
-          </Button>
-        )}
-        {renvoi && <Alert tone="success">{renvoi}</Alert>}
+        <div className="bg-[#16161f] border border-[#2a2a3a] rounded-2xl p-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+                <p className="text-red-400 text-sm">{error}</p>
+                {needsVerification && (
+                  <Link
+                    href="/verifier-email"
+                    className="text-indigo-400 hover:text-indigo-300 text-sm mt-1 inline-block"
+                  >
+                    Recevoir un nouveau lien
+                  </Link>
+                )}
+              </div>
+            )}
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vous@exemple.com"
+              required
+            />
+            <Input
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+            <Button type="submit" loading={loading} className="w-full mt-2">
+              Se connecter
+            </Button>
+          </form>
 
-        <Field
-          label="Adresse email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="vous@exemple.com"
-          autoComplete="email"
-          required
-        />
-
-        <div>
-          <Field
-            label="Mot de passe"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••"
-            autoComplete="current-password"
-            required
-          />
-          <p className="mt-2 text-right">
-            <Link href="/mot-de-passe-oublie" className="tf-link text-[13px]">
+          <p className="text-center text-[#55556a] text-sm mt-4">
+            <Link href="/mot-de-passe-oublie" className="text-indigo-400 hover:text-indigo-300">
               Mot de passe oublié ?
             </Link>
           </p>
-        </div>
 
-        <Button type="submit" variant="primary" size="lg" loading={loading} block className="mt-1">
-          Se connecter
-        </Button>
-      </form>
-    </AuthShell>
+          <p className="text-center text-[#55556a] text-sm mt-3">
+            Pas encore de compte ?{' '}
+            <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
+              S&apos;inscrire
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

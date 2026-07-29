@@ -1,121 +1,66 @@
-'use client';
-
-import Image from 'next/image';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { PriorityPill } from '@/components/ui/Pill';
-import type { Priority } from '@/components/ui/Pill';
-import { Icon } from '@/components/ui/Icon';
-import type { Task } from '../_types';
+import { DueDateBadge } from './DueDateBadge';
+import { PRIORITY_BADGE, PRIORITY_LABEL, PRIORITY_BORDER } from '../_constants';
+import type { Task, TaskImage } from '../_types';
 
-/** Nombre de jours restants avant l'échéance. Négatif si dépassée. */
-function daysLeft(dueDate: string): number | null {
-  // Le serveur renvoie l'échéance en millisecondes depuis l'époque, sous
-  // forme de chaîne. Une date ISO reste acceptée par sécurité.
-  const timestamp = /^\d+$/.test(dueDate) ? Number(dueDate) : Date.parse(dueDate);
-  if (!Number.isFinite(timestamp)) return null;
+type Props = {
+  task: Task;
+  isDragging?: boolean;
+  onClick?: () => void;
+  onImageClick?: (images: TaskImage[], index: number) => void;
+};
 
-  const jour = 86_400_000;
-  const echeance = Math.floor(timestamp / jour);
-  const aujourdhui = Math.floor(Date.now() / jour);
-  return echeance - aujourdhui;
-}
-
-/** Échéance en clair, avec la couleur qui correspond à son urgence. */
-function DueBadge({ dueDate }: { dueDate: string }) {
-  const reste = daysLeft(dueDate);
-  if (reste === null) return null;
-
-  const { texte, couleur } =
-    reste < 0
-      ? { texte: `En retard de ${Math.abs(reste)} j`, couleur: 'var(--danger-text)' }
-      : reste === 0
-        ? { texte: "Aujourd'hui", couleur: 'var(--danger-text)' }
-        : reste === 1
-          ? { texte: 'Demain', couleur: 'var(--warning-text)' }
-          : reste <= 7
-            ? { texte: `Dans ${reste} j`, couleur: 'var(--warning-text)' }
-            : {
-                texte: new Date(
-                  /^\d+$/.test(dueDate) ? Number(dueDate) : dueDate,
-                ).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-                couleur: 'var(--text-3)',
-              };
-
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: couleur }}>
-      <Icon.Clock size={12} />
-      {texte}
-    </span>
-  );
-}
-
-export function TaskCard({ task, onOpen }: { task: Task; onOpen: (task: Task) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-  });
-
+export function TaskCard({ task, isDragging = false, onClick, onImageClick }: Props) {
   return (
     <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.35 : 1,
-      }}
-      {...attributes}
-      {...listeners}
-      className="tf-card touch-none"
+      onClick={onClick}
+      className={`w-full bg-[#16161f] border border-[#2a2a3a] border-l-2 ${PRIORITY_BORDER[task.priority] ?? 'border-l-[#2a2a3a]'} rounded-lg p-3 ${
+        isDragging
+          ? 'shadow-xl shadow-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20'
+          : 'hover:border-[#3a3a50] cursor-pointer'
+      } transition-colors min-w-0 overflow-hidden box-border`}
     >
-      <span className="g-refract" />
-      <span className="g-tint" />
-      <span className="g-rim" />
-
-      {/* Un bouton, pas un div cliquable : la tâche s'ouvre aussi au clavier. */}
-      <button
-        type="button"
-        onClick={() => onOpen(task)}
-        className="g-body w-full cursor-pointer p-3.5 text-left"
-      >
-        <p className="mb-2.5 text-[13.5px] font-medium leading-snug">{task.title}</p>
-
-        {task.images.length > 0 && (
-          <div className="mb-2.5 flex gap-1.5">
-            {task.images.slice(0, 3).map((img) => (
-              <Image
-                key={img.id}
-                src={img.url}
-                alt=""
-                width={44}
-                height={44}
-                sizes="44px"
-                className="h-11 w-11 rounded-[8px] object-cover"
-                style={{ boxShadow: 'inset 0 0 0 1px var(--border)' }}
-              />
-            ))}
-            {task.images.length > 3 && (
-              <span
-                className="tf-num flex h-11 w-11 items-center justify-center rounded-[8px] text-[11px]"
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-3)' }}
-              >
-                +{task.images.length - 3}
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-2">
-          <PriorityPill priority={(task.priority as Priority) ?? 'MEDIUM'} />
-          {task.assignee && <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size={22} />}
+      <p className="text-base lg:text-lg font-semibold text-[#ffffff] mb-2 leading-snug break-words group-hover:text-indigo-300 transition-colors">
+        {task.title}
+      </p>
+      {task.description && (
+        <p className="text-sm lg:text-md text-[#ffffff] mb-2 line-clamp-2 leading-relaxed break-words">
+          {task.description}
+        </p>
+      )}
+      {task.images.length > 0 && (
+        <div className="flex gap-1 mb-2 flex-wrap">
+          {task.images.slice(0, 3).map((img, i) => (
+            <img
+              key={img.id}
+              src={img.url}
+              alt=""
+              className="w-16 h-16 lg:w-20 lg:h-20 rounded object-cover border border-[#2a2a3a]"
+              onClick={(e) => {
+                e.stopPropagation();
+                onImageClick?.(task.images, i);
+              }}
+            />
+          ))}
+          {task.images.length > 3 && (
+            <div className="w-16 h-16 lg:w-20 lg:h-20 rounded bg-[#2a2a3a] flex items-center justify-center text-xs text-[#8888aa]">
+              +{task.images.length - 3}
+            </div>
+          )}
         </div>
-
-        {task.dueDate && (
-          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border)' }}>
-            <DueBadge dueDate={task.dueDate} />
-          </div>
+      )}
+      <DueDateBadge dueDate={task.dueDate} />
+      <div className="flex items-center justify-between mt-1">
+        <Badge variant={PRIORITY_BADGE[task.priority] ?? 'default'}>
+          {PRIORITY_LABEL[task.priority] ?? task.priority}
+        </Badge>
+        {task.assignee ? (
+          <Avatar name={task.assignee.name} avatar={task.assignee.avatar} size="sm" />
+        ) : (
+          <span className="text-xs lg:text-[14px] text-[#80808f]">Non assigné</span>
         )}
-      </button>
+      </div>
     </div>
   );
 }
