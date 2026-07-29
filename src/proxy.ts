@@ -5,19 +5,22 @@ import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/cookies';
 /**
  * Garde de premier niveau sur les pages privees.
  *
- * Elle ne verifie pas la signature du jeton — le middleware s'execute sur le
+ * Nommee `proxy` et non `middleware` : Next.js 16 a renomme la convention,
+ * l'ancien nom etant deprecie.
+ *
+ * Elle ne verifie pas la signature du jeton — ce code s'execute sur le
  * runtime Edge, ou `jsonwebtoken` n'est pas disponible — mais seulement la
  * presence d'un cookie de session. C'est suffisant pour son role : eviter
  * qu'un visiteur non connecte voie s'afficher une coquille de page avant que
  * le client ne le redirige.
  *
  * La verification qui fait autorite reste cote serveur, dans le contexte
- * GraphQL et les routes /api/auth. Ce middleware n'est pas une barriere de
- * securite et ne doit jamais etre traite comme telle.
+ * GraphQL et les routes d'authentification. Ce garde n'est pas une barriere
+ * de securite et ne doit jamais etre traite comme telle.
  */
 const PROTECTED_PREFIXES = ['/dashboard', '/profile'];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isProtected = PROTECTED_PREFIXES.some(
