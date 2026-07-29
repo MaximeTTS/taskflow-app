@@ -178,6 +178,11 @@ export function CreateTaskModal({ open, onClose, members, onSubmit }: Props) {
             <div className="grid grid-cols-2 gap-3">
               {previews.map((preview, idx) => (
                 <div key={idx} className="relative">
+                  {/* Apercu local : `preview` est une data URI produite par
+                      FileReader, que next/image ne peut pas optimiser. La
+                      balise native est ici le bon choix.
+                      eslint-disable-next-line @next/next/no-img-element */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={preview}
                     alt=""

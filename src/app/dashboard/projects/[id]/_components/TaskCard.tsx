@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { TfAvatar, PriorityPill } from '@/components/tf/atoms';
 import { DueDateBadge } from './DueDateBadge';
 import type { Task, TaskImage } from '../_types';
@@ -34,10 +35,15 @@ export function TaskCard({ task, isDragging = false, onClick, onImageClick }: Pr
       {task.images.length > 0 && (
         <div className="flex gap-1 mt-2.5 flex-wrap">
           {task.images.slice(0, 3).map((img, i) => (
-            <img
+            <Image
               key={img.id}
               src={img.url}
               alt=""
+              width={64}
+              height={64}
+              // Vignette de 64 px : sans cela, l image d origine, jusqu a
+              // 1200 px de large, etait telechargee en entier.
+              sizes="64px"
               className="w-16 h-16 rounded-xl object-cover"
               style={{ border: '1px solid var(--tf-hairline)' }}
               onClick={(e) => {

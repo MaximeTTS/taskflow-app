@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties, type ReactNode, type SVGProps } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useTfTheme } from './theme';
 
@@ -246,9 +247,17 @@ export function TfAvatar({
     : '0 2px 6px rgba(0,0,0,0.18)';
 
   const inner = avatar ? (
-    <img
+    // `next/image` sert un avatar redimensionne et en AVIF/WebP au lieu du
+    // fichier d origine : un avatar de 1200 px de large arrivait tel quel
+    // pour etre affiche dans 32 px.
+    <Image
       src={avatar}
       alt={name}
+      width={size}
+      height={size}
+      // Ces pastilles sont partout dans l interface ; les charger de facon
+      // paresseuse ferait clignoter les listes au defilement.
+      priority={false}
       style={{
         width: size,
         height: size,

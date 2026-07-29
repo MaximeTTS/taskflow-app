@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -176,9 +177,12 @@ export function TaskDetailModal({
             <div className="grid grid-cols-2 gap-3">
               {task.images.map((img, idx) => (
                 <div key={img.id} className="relative">
-                  <img
+                  <Image
                     src={img.url}
                     alt=""
+                    width={400}
+                    height={128}
+                    sizes="(max-width: 640px) 50vw, 300px"
                     className="w-full h-32 object-cover rounded-lg border border-[#2a2a3a] cursor-pointer hover:border-indigo-500 transition-colors"
                     onClick={() => onLightbox(task.images, idx)}
                   />
