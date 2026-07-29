@@ -16,6 +16,7 @@ const config: Config = {
         ],
       },
       testMatch: ['**/__tests__/unit/**/*.test.ts'],
+      setupFiles: ['<rootDir>/jest.setup.ts'],
       moduleNameMapper: {
         '^@/generated/prisma/client$': '<rootDir>/src/__tests__/__mocks__/prisma.ts',
         '^@/generated/(.*)$': '<rootDir>/src/__tests__/__mocks__/prisma.ts',
@@ -38,6 +39,7 @@ const config: Config = {
         ],
       },
       testMatch: ['**/__tests__/integration/**/*.test.ts'],
+      setupFiles: ['<rootDir>/jest.setup.ts'],
       moduleNameMapper: {
         '^@/generated/prisma/client$': '<rootDir>/src/__tests__/__mocks__/prisma.ts',
         '^@/generated/(.*)$': '<rootDir>/src/__tests__/__mocks__/prisma.ts',

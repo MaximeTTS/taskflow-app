@@ -94,7 +94,6 @@ export const typeDefs = gql`
     login(input: LoginInput!): AuthPayload!
 
     # Users
-    createUser(input: CreateUserInput!): User!
     updateProfile(input: UpdateProfileInput!): User!
     updateAvatar(base64Image: String!): User!
     changePassword(input: ChangePasswordInput!): Boolean!
@@ -127,12 +126,6 @@ export const typeDefs = gql`
     password: String!
   }
 
-  input CreateUserInput {
-    email: String!
-    name: String
-    password: String!
-  }
-
   input CreateProjectInput {
     name: String!
     description: String
@@ -144,9 +137,8 @@ export const typeDefs = gql`
     status: TaskStatus
     priority: Priority
     dueDate: String
-    projectId: String!
-    assigneeId: String
-    creatorId: String!
+    projectId: ID!
+    assigneeId: ID
   }
 
   input UpdateTaskInput {

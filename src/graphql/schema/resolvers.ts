@@ -1,7 +1,35 @@
 import { prisma } from '@/lib/prisma';
 import { hashPassword, verifyPassword, generateToken } from '@/lib/auth';
-import { requireProjectRole } from '@/lib/permissions';
+import { requireProjectRole, canAssignRole, canManageMember } from '@/lib/permissions';
+import type { Role } from '@/lib/permissions';
+import { loginLimiter, registerLimiter } from '@/lib/rate-limit';
+import { assertValidImageUpload } from '@/lib/upload-validation';
+import {
+  assertValidEmail,
+  assertValidPassword,
+  assertLength,
+  normalizeEmail,
+  LIMITS,
+} from '@/lib/validation';
 import type { Context } from '@/types/context';
+
+/** Rejette toute requête non authentifiée et rend l'utilisateur courant. */
+function requireUser(context: Context) {
+  if (!context.user) throw new Error('Non autorisé');
+  return context.user;
+}
+
+/** Applique un limiteur de débit et transforme un refus en erreur lisible. */
+function enforceRateLimit(
+  limiter: { check: (key: string) => { allowed: boolean; retryAfterMs: number } },
+  key: string,
+): void {
+  const { allowed, retryAfterMs } = limiter.check(key);
+  if (!allowed) {
+    const minutes = Math.max(1, Math.ceil(retryAfterMs / 60_000));
+    throw new Error(`Trop de tentatives. Réessayez dans ${minutes} minute(s).`);
+  }
+}
 
 export const resolvers = {
   Query: {
@@ -12,22 +40,54 @@ export const resolvers = {
       });
     },
 
-    users: async () => {
-      return prisma.user.findMany();
+    /**
+     * Restreint aux personnes avec qui on partage au moins un projet.
+     * Cette requête était publique et sans authentification : elle permettait
+     * à un anonyme de récupérer l'email et le nom de tous les comptes.
+     */
+    users: async (_: unknown, __: unknown, context: Context) => {
+      const user = requireUser(context);
+      return prisma.user.findMany({
+        where: {
+          memberships: {
+            some: {
+              project: {
+                members: { some: { userId: user.id } },
+              },
+            },
+          },
+        },
+      });
     },
 
-    user: async (_: unknown, args: { id: string }) => {
-      return prisma.user.findUnique({
-        where: { id: args.id },
+    user: async (_: unknown, args: { id: string }, context: Context) => {
+      const currentUser = requireUser(context);
+
+      if (args.id === currentUser.id) {
+        return prisma.user.findUnique({ where: { id: args.id } });
+      }
+
+      // Même règle que `users` : visible seulement via un projet partagé.
+      return prisma.user.findFirst({
+        where: {
+          id: args.id,
+          memberships: {
+            some: {
+              project: {
+                members: { some: { userId: currentUser.id } },
+              },
+            },
+          },
+        },
       });
     },
 
     projects: async (_: unknown, __: unknown, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
       return prisma.project.findMany({
         where: {
           members: {
-            some: { userId: context.user.id },
+            some: { userId: user.id },
           },
         },
         include: {
@@ -39,8 +99,8 @@ export const resolvers = {
     },
 
     project: async (_: unknown, args: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.id, 'VIEWER');
+      const user = requireUser(context);
+      await requireProjectRole(user.id, args.id, 'VIEWER');
       return prisma.project.findUnique({
         where: { id: args.id },
         include: {
@@ -58,9 +118,9 @@ export const resolvers = {
     },
 
     tasks: async (_: unknown, __: unknown, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
       return prisma.task.findMany({
-        where: { creatorId: context.user.id },
+        where: { creatorId: user.id },
         include: {
           project: true,
           assignee: true,
@@ -70,7 +130,7 @@ export const resolvers = {
     },
 
     task: async (_: unknown, args: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
       const task = await prisma.task.findUnique({
         where: { id: args.id },
         include: {
@@ -81,7 +141,7 @@ export const resolvers = {
         },
       });
       if (!task) return null;
-      await requireProjectRole(context.user.id, task.projectId, 'VIEWER');
+      await requireProjectRole(user.id, task.projectId, 'VIEWER');
       return task;
     },
   },
@@ -90,18 +150,26 @@ export const resolvers = {
     register: async (
       _: unknown,
       args: { input: { email: string; name?: string; password: string } },
+      context: Context,
     ) => {
-      const existingUser = await prisma.user.findUnique({
-        where: { email: args.input.email },
-      });
+      enforceRateLimit(registerLimiter, context.ip);
+
+      assertValidEmail(args.input.email);
+      assertValidPassword(args.input.password);
+      assertLength(args.input.name, 'nom', LIMITS.userName);
+
+      const email = normalizeEmail(args.input.email);
+
+      const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) {
         throw new Error('Un compte existe déjà avec cet email');
       }
+
       const hashedPassword = await hashPassword(args.input.password);
       const user = await prisma.user.create({
         data: {
-          email: args.input.email,
-          name: args.input.name,
+          email,
+          name: args.input.name?.trim(),
           password: hashedPassword,
         },
       });
@@ -109,13 +177,24 @@ export const resolvers = {
       return { token, user };
     },
 
-    login: async (_: unknown, args: { input: { email: string; password: string } }) => {
-      const user = await prisma.user.findUnique({
-        where: { email: args.input.email },
-      });
+    login: async (
+      _: unknown,
+      args: { input: { email: string; password: string } },
+      context: Context,
+    ) => {
+      // Limite par adresse ET par compte visé : la première borne le balayage
+      // de comptes, la seconde protège un compte précis d'une attaque répartie.
+      enforceRateLimit(loginLimiter, context.ip);
+
+      const email = normalizeEmail(args.input.email);
+      enforceRateLimit(loginLimiter, `compte:${email}`);
+
+      const user = await prisma.user.findUnique({ where: { email } });
       if (!user) throw new Error('Email ou mot de passe incorrect');
+
       const isValid = await verifyPassword(args.input.password, user.password);
       if (!isValid) throw new Error('Email ou mot de passe incorrect');
+
       const token = generateToken({ id: user.id, email: user.email });
       return { token, user };
     },
@@ -125,23 +204,26 @@ export const resolvers = {
       args: { input: { name?: string; email?: string } },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const currentUser = requireUser(context);
 
-      const existingUser = args.input.email
-        ? await prisma.user.findUnique({
-            where: { email: args.input.email },
-          })
-        : null;
+      assertLength(args.input.name, 'nom', LIMITS.userName);
 
-      if (existingUser && existingUser.id !== context.user.id) {
-        throw new Error('Cet email est déjà utilisé');
+      let email: string | undefined;
+      if (args.input.email !== undefined) {
+        assertValidEmail(args.input.email);
+        email = normalizeEmail(args.input.email);
+
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser && existingUser.id !== currentUser.id) {
+          throw new Error('Cet email est déjà utilisé');
+        }
       }
 
       return prisma.user.update({
-        where: { id: context.user.id },
+        where: { id: currentUser.id },
         data: {
-          name: args.input.name ?? undefined,
-          email: args.input.email ?? undefined,
+          name: args.input.name?.trim() ?? undefined,
+          email,
         },
       });
     },
@@ -151,10 +233,12 @@ export const resolvers = {
       args: { input: { currentPassword: string; newPassword: string } },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const currentUser = requireUser(context);
+
+      assertValidPassword(args.input.newPassword);
 
       const user = await prisma.user.findUnique({
-        where: { id: context.user.id },
+        where: { id: currentUser.id },
       });
 
       if (!user) throw new Error('Utilisateur introuvable');
@@ -166,35 +250,23 @@ export const resolvers = {
       const hashedPassword = await hashPassword(args.input.newPassword);
 
       await prisma.user.update({
-        where: { id: context.user.id },
+        where: { id: currentUser.id },
         data: { password: hashedPassword },
       });
 
       return true;
     },
 
-    createUser: async (
-      _: unknown,
-      args: { input: { email: string; name?: string; password: string } },
-    ) => {
-      const hashedPassword = await hashPassword(args.input.password);
-      return prisma.user.create({
-        data: {
-          email: args.input.email,
-          name: args.input.name,
-          password: hashedPassword,
-        },
-      });
-    },
-
     updateAvatar: async (_: unknown, args: { base64Image: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const currentUser = requireUser(context);
+
+      assertValidImageUpload(args.base64Image);
 
       const { uploadImage } = await import('@/lib/cloudinary');
       const { url } = await uploadImage(args.base64Image, 'taskflow/avatars');
 
       return prisma.user.update({
-        where: { id: context.user.id },
+        where: { id: currentUser.id },
         data: { avatar: url },
       });
     },
@@ -204,15 +276,19 @@ export const resolvers = {
       args: { input: { name: string; description?: string } },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
+
+      assertLength(args.input.name, 'nom du projet', LIMITS.projectName);
+      assertLength(args.input.description, 'description', LIMITS.projectDescription);
+
       return prisma.project.create({
         data: {
-          name: args.input.name,
-          description: args.input.description,
-          ownerId: context.user.id,
+          name: args.input.name.trim(),
+          description: args.input.description?.trim(),
+          ownerId: user.id,
           members: {
             create: {
-              userId: context.user.id,
+              userId: user.id,
               role: 'OWNER',
             },
           },
@@ -229,14 +305,17 @@ export const resolvers = {
       args: { id: string; input: { name?: string; description?: string } },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.id, 'ADMIN');
+      const user = requireUser(context);
+      await requireProjectRole(user.id, args.id, 'ADMIN');
+
+      assertLength(args.input.name, 'nom du projet', LIMITS.projectName);
+      assertLength(args.input.description, 'description', LIMITS.projectDescription);
 
       return prisma.project.update({
         where: { id: args.id },
         data: {
-          name: args.input.name ?? undefined,
-          description: args.input.description ?? undefined,
+          name: args.input.name?.trim() ?? undefined,
+          description: args.input.description?.trim() ?? undefined,
         },
         include: {
           owner: true,
@@ -247,8 +326,8 @@ export const resolvers = {
     },
 
     deleteProject: async (_: unknown, args: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.id, 'OWNER');
+      const user = requireUser(context);
+      await requireProjectRole(user.id, args.id, 'OWNER');
 
       await prisma.project.delete({
         where: { id: args.id },
@@ -259,14 +338,19 @@ export const resolvers = {
 
     addMember: async (
       _: unknown,
-      args: { projectId: string; email: string; role: string },
+      args: { projectId: string; email: string; role: Role },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
+      const user = requireUser(context);
+      const actorRole = await requireProjectRole(user.id, args.projectId, 'ADMIN');
+
+      // Un ADMIN ne peut pas faire entrer quelqu'un à son niveau ou au-dessus.
+      if (!canAssignRole(actorRole, args.role)) {
+        throw new Error("Action non autorisée");
+      }
 
       const userToAdd = await prisma.user.findUnique({
-        where: { email: args.email },
+        where: { email: normalizeEmail(args.email) },
       });
 
       if (!userToAdd) {
@@ -290,7 +374,7 @@ export const resolvers = {
         data: {
           userId: userToAdd.id,
           projectId: args.projectId,
-          role: args.role as 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER',
+          role: args.role,
         },
         include: {
           user: true,
@@ -304,15 +388,25 @@ export const resolvers = {
       args: { projectId: string; userId: string },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
+      const user = requireUser(context);
+      const actorRole = await requireProjectRole(user.id, args.projectId, 'ADMIN');
 
-      const project = await prisma.project.findUnique({
-        where: { id: args.projectId },
+      const target = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId: args.userId,
+            projectId: args.projectId,
+          },
+        },
       });
 
-      if (project?.ownerId === args.userId) {
-        throw new Error("Impossible d'expulser le propriétaire du projet");
+      if (!target) {
+        throw new Error('Membre introuvable');
+      }
+
+      // Couvre aussi le propriétaire, qui est OWNER et donc hors de portée.
+      if (!canManageMember(actorRole, target.role as Role)) {
+        throw new Error("Action non autorisée");
       }
 
       await prisma.projectMember.delete({
@@ -329,18 +423,32 @@ export const resolvers = {
 
     updateMemberRole: async (
       _: unknown,
-      args: { projectId: string; userId: string; role: string },
+      args: { projectId: string; userId: string; role: Role },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.projectId, 'ADMIN');
+      const user = requireUser(context);
+      const actorRole = await requireProjectRole(user.id, args.projectId, 'ADMIN');
 
-      const project = await prisma.project.findUnique({
-        where: { id: args.projectId },
+      const target = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId: args.userId,
+            projectId: args.projectId,
+          },
+        },
       });
 
-      if (project?.ownerId === args.userId) {
-        throw new Error('Impossible de changer le rôle du propriétaire');
+      if (!target) {
+        throw new Error('Membre introuvable');
+      }
+
+      // Deux gardes distinctes : pouvoir agir sur ce membre, et pouvoir
+      // attribuer ce rôle. Sans la seconde, un ADMIN se promouvait OWNER.
+      if (
+        !canManageMember(actorRole, target.role as Role) ||
+        !canAssignRole(actorRole, args.role)
+      ) {
+        throw new Error("Action non autorisée");
       }
 
       return prisma.projectMember.update({
@@ -351,7 +459,7 @@ export const resolvers = {
           },
         },
         data: {
-          role: args.role as 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER',
+          role: args.role,
         },
         include: {
           user: true,
@@ -368,31 +476,38 @@ export const resolvers = {
           description?: string;
           projectId: string;
           assigneeId?: string;
-          status?: string;
-          priority?: string;
+          status?: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELLED';
+          priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
           dueDate?: string;
         };
       },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
-      await requireProjectRole(context.user.id, args.input.projectId, 'MEMBER');
+      const user = requireUser(context);
+      await requireProjectRole(user.id, args.input.projectId, 'MEMBER');
+
+      assertLength(args.input.title, 'titre', LIMITS.taskTitle);
+      assertLength(args.input.description, 'description', LIMITS.taskDescription);
+
+      // Un assigné doit être membre du projet : sans cette garde, on pouvait
+      // attribuer une tâche à n'importe quel identifiant d'utilisateur.
+      if (args.input.assigneeId) {
+        await requireProjectRole(args.input.assigneeId, args.input.projectId, 'VIEWER').catch(
+          () => {
+            throw new Error("L'assigné n'est pas membre de ce projet");
+          },
+        );
+      }
 
       return prisma.task.create({
         data: {
-          title: args.input.title,
-          description: args.input.description,
+          title: args.input.title.trim(),
+          description: args.input.description?.trim(),
           projectId: args.input.projectId,
           assigneeId: args.input.assigneeId,
-          creatorId: context.user.id,
-          status: args.input.status as
-            | 'TODO'
-            | 'IN_PROGRESS'
-            | 'IN_REVIEW'
-            | 'DONE'
-            | 'CANCELLED'
-            | undefined,
-          priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
+          creatorId: user.id,
+          status: args.input.status,
+          priority: args.input.priority,
           dueDate: args.input.dueDate ? new Date(args.input.dueDate) : undefined,
         },
         include: {
@@ -411,62 +526,81 @@ export const resolvers = {
         input: {
           title?: string;
           description?: string;
-          status?: string;
-          priority?: string;
-          dueDate?: string;
+          status?: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CANCELLED';
+          priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+          dueDate?: string | null;
           assigneeId?: string | null;
         };
       },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
       const task = await prisma.task.findUnique({
         where: { id: args.id },
       });
       if (!task) throw new Error('Tâche introuvable');
-      await requireProjectRole(context.user.id, task.projectId, 'MEMBER');
+      await requireProjectRole(user.id, task.projectId, 'MEMBER');
+
+      assertLength(args.input.title, 'titre', LIMITS.taskTitle);
+      assertLength(args.input.description, 'description', LIMITS.taskDescription);
+
+      if (args.input.assigneeId) {
+        await requireProjectRole(args.input.assigneeId, task.projectId, 'VIEWER').catch(() => {
+          throw new Error("L'assigné n'est pas membre de ce projet");
+        });
+      }
 
       return prisma.task.update({
         where: { id: args.id },
         data: {
-          title: args.input.title ?? undefined,
-          description: args.input.description ?? undefined,
+          title: args.input.title?.trim() ?? undefined,
+          description: args.input.description?.trim() ?? undefined,
           assigneeId: args.input.assigneeId === null ? null : (args.input.assigneeId ?? undefined),
-          status: args.input.status as
-            | 'TODO'
-            | 'IN_PROGRESS'
-            | 'IN_REVIEW'
-            | 'DONE'
-            | 'CANCELLED'
-            | undefined,
-          priority: args.input.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | undefined,
-          dueDate: args.input.dueDate !== undefined ? new Date(args.input.dueDate) : undefined,
+          status: args.input.status,
+          priority: args.input.priority,
+          // `null` efface l'échéance, `undefined` la laisse inchangée.
+          // L'ancien code passait `new Date(null)` — soit le 1er janvier 1970 —
+          // ce qui rendait toute suppression d'échéance impossible.
+          dueDate:
+            args.input.dueDate === null
+              ? null
+              : args.input.dueDate !== undefined
+                ? new Date(args.input.dueDate)
+                : undefined,
         },
         include: {
           project: true,
           assignee: true,
           creator: true,
+          images: true,
         },
       });
     },
 
     deleteTask: async (_: unknown, args: { id: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
       const task = await prisma.task.findUnique({
         where: { id: args.id },
       });
       if (!task) throw new Error('Tâche introuvable');
-      await requireProjectRole(context.user.id, task.projectId, 'ADMIN');
+
+      // Aligné sur `updateTask` : un MEMBER qui peut vider entièrement une
+      // tâche devait déjà pouvoir la supprimer. L'écart précédent (ADMIN pour
+      // supprimer, MEMBER pour modifier) n'apportait aucune protection.
+      await requireProjectRole(user.id, task.projectId, 'MEMBER');
 
       await prisma.task.delete({ where: { id: args.id } });
       return true;
     },
+
     uploadTaskImage: async (
       _: unknown,
       args: { taskId: string; base64Image: string },
       context: Context,
     ) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
+
+      assertValidImageUpload(args.base64Image);
 
       const task = await prisma.task.findUnique({
         where: { id: args.taskId },
@@ -474,7 +608,7 @@ export const resolvers = {
 
       if (!task) throw new Error('Tâche introuvable');
 
-      await requireProjectRole(context.user.id, task.projectId, 'MEMBER');
+      await requireProjectRole(user.id, task.projectId, 'MEMBER');
 
       const { uploadImage } = await import('@/lib/cloudinary');
       const { url, publicId } = await uploadImage(args.base64Image, 'taskflow/tasks');
@@ -489,7 +623,7 @@ export const resolvers = {
     },
 
     deleteTaskImage: async (_: unknown, args: { imageId: string }, context: Context) => {
-      if (!context.user) throw new Error('Non autorisé');
+      const user = requireUser(context);
 
       const image = await prisma.taskImage.findUnique({
         where: { id: args.imageId },
@@ -498,7 +632,7 @@ export const resolvers = {
 
       if (!image) throw new Error('Image introuvable');
 
-      await requireProjectRole(context.user.id, image.task.projectId, 'MEMBER');
+      await requireProjectRole(user.id, image.task.projectId, 'MEMBER');
 
       const { deleteImage } = await import('@/lib/cloudinary');
       await deleteImage(image.publicId);

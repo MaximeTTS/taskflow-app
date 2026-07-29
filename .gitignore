@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Le gabarit ne contient aucun secret et documente les variables attendues.
+!.env.example
 
 # vercel
 .vercel

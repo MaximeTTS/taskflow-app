@@ -49,12 +49,6 @@ export function CreateTaskModal({ open, onClose, members, onSubmit }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
-    const userStr = localStorage.getItem('user');
-    const cu = userStr ? (JSON.parse(userStr) as { id: string }) : null;
-    if (!cu?.id) {
-      setCreating(false);
-      return;
-    }
     try {
       await onSubmit(
         {
@@ -63,7 +57,9 @@ export function CreateTaskModal({ open, onClose, members, onSubmit }: Props) {
           priority,
           status,
           projectId: undefined, // sera injecté depuis page.tsx
-          creatorId: cu.id,
+          // Le créateur est déterminé côté serveur à partir du jeton : le
+          // laisser choisir au client permettait d'attribuer une tâche à
+          // n'importe qui.
           assigneeId: assignee === '' ? undefined : assignee,
           dueDate: dueDate === '' ? undefined : dueDate,
         },
