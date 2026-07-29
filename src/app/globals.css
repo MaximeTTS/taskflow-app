@@ -985,6 +985,7 @@
    plein, pour qu'il se lise comme un emplacement libre et non comme une
    carte de plus. */
 .tf-add-ghost {
+  display: block;
   width: 100%;
   text-align: left;
   padding: 9px 12px;
@@ -1028,6 +1029,22 @@
 
 .tf-link:hover::after {
   transform: scaleX(1);
+}
+
+/* ── Pile de cartes collantes ────────────────────────────────────────
+   Le collage n'existe qu'à partir de md. En dessous, une carte est plus
+   haute que la fenêtre : elle ne peut pas coller, elle défilerait hors
+   champ. Les cartes se suivent alors normalement. */
+.tf-stack-card {
+  position: static;
+  will-change: transform;
+}
+
+@media (min-width: 768px) {
+  .tf-stack-card {
+    position: sticky;
+    top: calc(11vh + var(--stack-i) * 20px);
+  }
 }
 
 /* ── Case à cocher et interrupteur ───────────────────────────────────

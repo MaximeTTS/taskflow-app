@@ -8,12 +8,16 @@ import { EASE, gsap, mount } from '@/lib/motion';
  * Cartes qui s'empilent en défilant.
  *
  * Chaque enfant se colle en haut de l'écran puis se laisse recouvrir par le
- * suivant, en reculant légèrement — l'empilement d'une colonne qui se
+ * suivant en reculant légèrement — l'empilement d'une colonne qui se
  * remplit. C'est le geste du produit appliqué à la page.
  *
- * L'effet repose sur `position: sticky` pour le collage et sur ScrollTrigger
- * pour la mise à l'échelle. Faire les deux en JavaScript coûterait un calcul
- * par image là où le navigateur sait déjà coller un élément.
+ * Le collage est fait par `position: sticky` et non en JavaScript : le
+ * navigateur sait déjà coller un élément, et ScrollTrigger ne sert qu'à la
+ * mise à l'échelle.
+ *
+ * **L'empilement est désactivé sous 768 px.** Une carte plus haute que la
+ * fenêtre ne peut pas coller : elle défile hors champ et l'effet se casse au
+ * lieu de se dégrader. Sur mobile les cartes se suivent simplement.
  */
 export function StackSection({
   children,
@@ -27,6 +31,8 @@ export function StackSection({
   useEffect(
     () =>
       mount(host.current, () => {
+        if (!window.matchMedia('(min-width: 768px)').matches) return;
+
         const cards = gsap.utils.toArray<HTMLElement>('[data-stack-card]', host.current);
 
         cards.forEach((card, i) => {
@@ -35,8 +41,7 @@ export function StackSection({
           if (i === cards.length - 1) return;
 
           gsap.to(card, {
-            scale: 1 - (cards.length - 1 - i) * 0.02,
-            filter: 'brightness(0.82)',
+            scale: 1 - (cards.length - 1 - i) * 0.018,
             ease: EASE.inOut,
             scrollTrigger: {
               trigger: cards[i + 1],
@@ -57,28 +62,28 @@ export function StackSection({
   );
 }
 
-/** Une carte de la pile. Le collage est porté ici, pas par le parent. */
+/**
+ * Une carte de la pile.
+ *
+ * Le collage est porté ici et non par le parent, et il ne s'active qu'à
+ * partir de `md` — en dessous, `position: static` laisse les cartes se
+ * suivre normalement.
+ */
 export function StackCard({
   children,
   index,
   className = '',
-  offset = 22,
 }: {
   children: ReactNode;
   /** Rang dans la pile : décale le point de collage pour laisser voir les bords. */
   index: number;
   className?: string;
-  offset?: number;
 }) {
   return (
     <div
       data-stack-card
-      className={className}
-      style={{
-        position: 'sticky',
-        top: `calc(12vh + ${index * offset}px)`,
-        willChange: 'transform',
-      }}
+      className={`tf-stack-card ${className}`}
+      style={{ '--stack-i': index } as React.CSSProperties}
     >
       {children}
     </div>

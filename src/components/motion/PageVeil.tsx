@@ -14,8 +14,11 @@ const BANDS = 5;
  *
  * Le voile se retire à l'arrivée plutôt que de se poser au départ. Poser un
  * voile avant la navigation obligerait à retenir la transition le temps du
- * chargement, donc à ajouter une latence artificielle à chaque clic — et sur
- * une navigation instantanée, à faire clignoter l'écran pour rien.
+ * chargement, donc à ajouter une latence artificielle à chaque clic.
+ *
+ * Le conteneur est remis en place à chaque changement de route. Une première
+ * version le masquait en `display: none` à la fin sans jamais le rétablir :
+ * la transition ne jouait qu'une fois, puis plus jamais.
  */
 export function PageVeil() {
   const pathname = usePathname();
@@ -26,21 +29,25 @@ export function PageVeil() {
     if (!el) return;
 
     if (reduced()) {
-      gsap.set(el.children, { yPercent: -100 });
+      gsap.set(el, { autoAlpha: 0 });
       return;
     }
 
     registerMotion();
+
+    // Remise à l'état couvrant avant chaque sortie, sinon la deuxième
+    // navigation animerait des bandes déjà remontées.
+    gsap.set(el, { autoAlpha: 1 });
+    gsap.set(el.children, { yPercent: 0 });
 
     const tween = gsap.to(el.children, {
       yPercent: -100,
       duration: DUR.slow,
       ease: EASE.veil,
       stagger: { each: 0.05, from: 'start' },
-      // Les bandes ne captent jamais le clic, mais on coupe aussi le nœud
-      // parent une fois sorties : un élément plein écran en `pointer-events:
-      // none` reste dans l'arbre d'accessibilité si on l'oublie.
-      onComplete: () => gsap.set(el, { display: 'none' }),
+      // `autoAlpha` coupe aussi `visibility`, donc le nœud sort de l'arbre
+      // d'accessibilité au lieu de rester un calque plein écran invisible.
+      onComplete: () => gsap.set(el, { autoAlpha: 0 }),
     });
 
     return () => {
@@ -61,14 +68,7 @@ export function PageVeil() {
       }}
     >
       {Array.from({ length: BANDS }, (_, i) => (
-        <span
-          key={i}
-          style={{
-            flex: 1,
-            background: 'var(--bg-canvas)',
-            willChange: 'transform',
-          }}
-        />
+        <span key={i} style={{ flex: 1, background: 'var(--bg-canvas)', willChange: 'transform' }} />
       ))}
     </div>
   );
