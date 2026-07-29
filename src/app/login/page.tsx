@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import type { User } from '@/store/auth-store';
@@ -77,15 +78,22 @@ export default function LoginPage() {
           required
         />
 
-        <Field
-          label="Mot de passe"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••••"
-          autoComplete="current-password"
-          required
-        />
+        <div>
+          <Field
+            label="Mot de passe"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••"
+            autoComplete="current-password"
+            required
+          />
+          <p className="mt-2 text-right">
+            <Link href="/mot-de-passe-oublie" className="tf-link text-[13px]">
+              Mot de passe oublié ?
+            </Link>
+          </p>
+        </div>
 
         <Button type="submit" variant="primary" size="lg" loading={loading} block className="mt-1">
           Se connecter

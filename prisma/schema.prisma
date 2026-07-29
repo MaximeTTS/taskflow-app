@@ -23,8 +23,32 @@ model User {
   assignedTasks Task[]          @relation("TaskAssignee")
   createdTasks  Task[]          @relation("TaskCreator")
   sessions      Session[]
+  resetTokens   PasswordResetToken[]
 
   @@map("users")
+}
+
+/// Jeton de reinitialisation de mot de passe.
+///
+/// Meme principe que Session : seule l'empreinte est stockee, la valeur
+/// remise a l'utilisateur n'existe que dans le lien qu'il recoit.
+///
+/// `usedAt` marque un jeton consomme sans le supprimer : un lien rejoue doit
+/// etre refuse, et garder la trace permet de le distinguer d'un lien inconnu
+/// au moment du diagnostic.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 /// Session de rafraichissement.

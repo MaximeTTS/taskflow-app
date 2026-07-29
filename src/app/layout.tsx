@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import { ApolloClientProvider } from '@/components/providers/apollo-provider';
 import { GlassFilters } from '@/components/glass/GlassFilters';
@@ -40,7 +41,20 @@ export const viewport = {
   themeColor: '#04070e',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Lire `headers()` bascule tout l'arbre en rendu dynamique, et c'est
+ * délibéré : la CSP porte un nonce régénéré à chaque requête (voir
+ * src/proxy.ts), or une page pré-rendue au build embarque un HTML figé,
+ * donc sans nonce. Le navigateur bloquerait alors les scripts que Next
+ * injecte lui-même et l'application ne démarrerait pas.
+ *
+ * Le coût est réel — plus de pré-rendu statique — mais il ne se discute
+ * pas : sans cela, la politique de sécurité et le HTML servi se
+ * contredisent.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await headers();
+
   return (
     // Les variables de police vont sur <html>, pas sur <body> : le bloc
     // @theme de Tailwind résout `--font-display` au niveau de :root, où une

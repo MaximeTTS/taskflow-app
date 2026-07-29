@@ -1,21 +1,56 @@
 /**
- * Limiteur de débit à fenêtre glissante, en mémoire.
+ * Limiteur de débit à fenêtre glissante.
  *
- * Portée volontairement limitée : l'état vit dans le processus. Derrière
- * plusieurs instances (Vercel, conteneurs répliqués), chaque instance compte
- * séparément — la protection est donc partielle. C'est un compromis assumé
- * pour éviter d'imposer Redis à ce projet ; le remplacement par un magasin
- * partagé se fait derrière cette même interface, sans toucher aux appelants.
- *
- * Sans cela, `login` acceptait un nombre illimité de tentatives : un mot de
+ * Sans lui, `login` acceptait un nombre illimité de tentatives : un mot de
  * passe faible tombait en quelques minutes.
+ *
+ * Le comptage est séparé du stockage. Le magasin par défaut vit dans le
+ * processus, ce qui suffit à une instance unique mais compte séparément
+ * derrière plusieurs répliques (Vercel, conteneurs) — la protection y est
+ * donc partielle. Fournir un magasin partagé, typiquement adossé à Redis,
+ * corrige cela sans toucher une ligne des appelants : c'est l'objet de
+ * l'interface `RateLimitStore`.
  */
+
+/**
+ * Stockage des horodatages de tentatives, par clé.
+ *
+ * Volontairement minimal : lire, écrire, oublier. Une implémentation Redis
+ * tient en quelques lignes derrière ce contrat.
+ */
+export type RateLimitStore = {
+  /** Horodatages connus pour cette clé. Tableau vide si inconnue. */
+  read: (key: string) => number[];
+  write: (key: string, timestamps: number[]) => void;
+  remove: (key: string) => void;
+  /** Toutes les clés suivies, pour la purge. */
+  keys: () => string[];
+  clear: () => void;
+};
+
+/** Magasin par défaut : une Map dans le processus courant. */
+export function createMemoryStore(): RateLimitStore {
+  const hits = new Map<string, number[]>();
+  return {
+    read: (key) => hits.get(key) ?? [],
+    write: (key, timestamps) => {
+      hits.set(key, timestamps);
+    },
+    remove: (key) => {
+      hits.delete(key);
+    },
+    keys: () => [...hits.keys()],
+    clear: () => hits.clear(),
+  };
+}
 
 type RateLimiterOptions = {
   /** Nombre de tentatives autorisées dans la fenêtre. */
   max: number;
   /** Durée de la fenêtre, en millisecondes. */
   windowMs: number;
+  /** Magasin des compteurs. En mémoire par défaut. */
+  store?: RateLimitStore;
 };
 
 export type RateLimitResult = {
@@ -31,18 +66,19 @@ export type RateLimiter = {
   reset: () => void;
 };
 
-export function createRateLimiter({ max, windowMs }: RateLimiterOptions): RateLimiter {
-  /** Horodatages des tentatives, par clé. */
-  const hits = new Map<string, number[]>();
-
+export function createRateLimiter({
+  max,
+  windowMs,
+  store = createMemoryStore(),
+}: RateLimiterOptions): RateLimiter {
   /** Retire les clés dont toutes les tentatives sont sorties de la fenêtre. */
   function purge(now: number): void {
-    for (const [key, timestamps] of hits) {
-      const live = timestamps.filter((t) => now - t < windowMs);
+    for (const key of store.keys()) {
+      const live = store.read(key).filter((t) => now - t < windowMs);
       if (live.length === 0) {
-        hits.delete(key);
-      } else if (live.length !== timestamps.length) {
-        hits.set(key, live);
+        store.remove(key);
+      } else {
+        store.write(key, live);
       }
     }
   }
@@ -52,22 +88,22 @@ export function createRateLimiter({ max, windowMs }: RateLimiterOptions): RateLi
       const now = Date.now();
       purge(now);
 
-      const timestamps = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+      const timestamps = store.read(key).filter((t) => now - t < windowMs);
 
       if (timestamps.length >= max) {
         const oldest = timestamps[0]!;
-        hits.set(key, timestamps);
+        store.write(key, timestamps);
         return { allowed: false, retryAfterMs: windowMs - (now - oldest) };
       }
 
       timestamps.push(now);
-      hits.set(key, timestamps);
+      store.write(key, timestamps);
       return { allowed: true, retryAfterMs: 0 };
     },
 
-    size: () => hits.size,
+    size: () => store.keys().length,
 
-    reset: () => hits.clear(),
+    reset: () => store.clear(),
   };
 }
 
