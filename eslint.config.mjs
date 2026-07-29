@@ -16,7 +16,15 @@ const eslintConfig = defineConfig([
     },
   },
 
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  // Le client Prisma est généré : on ne lint pas du code qu'on n'écrit pas.
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
+    'src/generated/**',
+    'coverage/**',
+  ]),
 ]);
 
 export default eslintConfig;
