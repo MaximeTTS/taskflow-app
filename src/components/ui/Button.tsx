@@ -88,8 +88,10 @@ export function Button({
       }}
       {...rest}
     >
-      {loading && <span className="tf-spinner" aria-hidden="true" />}
-      {children}
+      <span className="tf-btn-label">
+        {loading && <span className="tf-spinner" aria-hidden="true" />}
+        {children}
+      </span>
     </button>
   );
 }
@@ -123,7 +125,7 @@ export function IconButton({
       }}
       {...rest}
     >
-      {children}
+      <span className="tf-btn-label">{children}</span>
     </button>
   );
 }

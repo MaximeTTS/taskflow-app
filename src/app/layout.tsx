@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import { ApolloClientProvider } from '@/components/providers/apollo-provider';
+import { Aura } from '@/components/motion/Aura';
+import { PageVeil } from '@/components/motion/PageVeil';
 import { THEME_COLOR } from '@/lib/theme';
 import { readThemeChoice } from '@/lib/theme-server';
 import './globals.css';
@@ -77,7 +79,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${inter.variable} ${grotesk.variable}`}
     >
       <body>
-        <ApolloClientProvider>{children}</ApolloClientProvider>
+        <Aura />
+        <PageVeil />
+        {/* Le contenu passe au-dessus de l'ambiance, qui vit en z-index 0. */}
+        <ApolloClientProvider>
+          <div className="relative z-[1]">{children}</div>
+        </ApolloClientProvider>
       </body>
     </html>
   );

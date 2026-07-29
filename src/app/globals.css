@@ -826,6 +826,305 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Ambiance
+   ═══════════════════════════════════════════════════════════════════════
+
+   Une surface plate ne donne rien à la lumière. Deux nappes très lentes
+   suffisent à creuser le fond — assez pour que les bords des cartes se
+   détachent, assez peu pour qu'on ne les remarque pas.
+
+   L'intensité est un rôle : forte en sombre, presque nulle en clair, où le
+   moindre voile coloré salit un blanc.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --aura-1: 0.05;
+  --aura-2: 0.04;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --aura-1: 0.2;
+    --aura-2: 0.16;
+  }
+}
+
+:root[data-theme='light'] {
+  --aura-1: 0.05;
+  --aura-2: 0.04;
+}
+
+:root[data-theme='dark'] {
+  --aura-1: 0.2;
+  --aura-2: 0.16;
+}
+
+.tf-aura {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tf-aura span {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  will-change: transform;
+}
+
+.tf-aura span:nth-child(1) {
+  width: 48vw;
+  height: 48vw;
+  top: -14vw;
+  left: -10vw;
+  background: radial-gradient(circle, rgb(0 207 232 / var(--aura-1)) 0%, transparent 68%);
+  animation: tf-drift-a 38s var(--ease) infinite alternate;
+}
+
+.tf-aura span:nth-child(2) {
+  width: 42vw;
+  height: 42vw;
+  bottom: -16vw;
+  right: -8vw;
+  background: radial-gradient(circle, rgb(139 92 246 / var(--aura-2)) 0%, transparent 68%);
+  animation: tf-drift-b 46s var(--ease) infinite alternate;
+}
+
+/* Le grain casse le banding des dégradés très sombres, qui s'escalierent
+   visiblement sur un écran 8 bits. */
+.tf-aura b {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes tf-drift-a {
+  to { transform: translate3d(14vw, 8vh, 0) scale(1.16); }
+}
+@keyframes tf-drift-b {
+  to { transform: translate3d(-12vw, -10vh, 0) scale(1.1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Mouvement — appuis CSS des primitives
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Fenêtre d'une ligne découpée par SplitText : c'est elle qui fait monter
+   les caractères de sous leur propre ligne et non du bas du bloc. */
+.tf-line {
+  overflow: hidden;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+/* ── Boutons : le remplissage monte depuis le bas ────────────────────
+   Un changement de couleur au survol dit « je suis survolé ». Un
+   remplissage qui monte dit « je suis une cible » — il a une direction,
+   donc il se lit comme une réponse au geste. */
+/* `isolation` est nécessaire : sans contexte d'empilement propre, un
+   pseudo-élément posé sous le contenu passerait aussi sous le fond du
+   bouton, donc ne se verrait jamais sur les variantes pleines. */
+.tf-btn {
+  isolation: isolate;
+}
+
+.tf-btn-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tf-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0.12;
+  transform: translateY(101%);
+  transition: transform var(--dur-3) var(--ease-out);
+}
+
+.tf-btn:hover:not(:disabled)::before {
+  transform: translateY(0);
+}
+
+.tf-btn-primary::before,
+.tf-btn-danger::before {
+  background: #000;
+  opacity: 0.16;
+}
+
+/* La flèche avance d'un cran quand la cible est survolée. */
+.tf-btn svg {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.tf-btn:hover:not(:disabled) svg:last-child {
+  transform: translateX(3px);
+}
+
+/* ── Cartes : l'arête gauche s'allume ────────────────────────────────
+   La barre de priorité est déjà là et porte une donnée. Au survol elle
+   s'épaissit au lieu qu'un halo décoratif apparaisse ailleurs : le retour
+   se pose sur l'information, pas à côté d'elle. */
+.tf-card::before {
+  transition: width var(--dur-2) var(--ease-out);
+}
+
+.tf-card:hover::before {
+  width: 5px;
+}
+
+/* Bouton d'ajout au pied d'une colonne : un contour pointillé plutôt qu'un
+   plein, pour qu'il se lise comme un emplacement libre et non comme une
+   carte de plus. */
+.tf-add-ghost {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: var(--r-2);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease),
+    background var(--dur-2) var(--ease);
+}
+
+.tf-add-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: color-mix(in oklab, var(--accent) 7%, transparent);
+}
+
+/* ── Liens : le trait se déploie depuis la gauche ────────────────────── */
+.tf-link {
+  position: relative;
+  text-decoration: none;
+}
+
+.tf-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-3) var(--ease-out);
+}
+
+.tf-link:hover::after {
+  transform: scaleX(1);
+}
+
+/* ── Case à cocher et interrupteur ───────────────────────────────────
+   L'`<input>` natif est masqué visuellement mais reste dans le DOM : il
+   porte le focus, l'état pour les technologies d'assistance et la
+   participation au formulaire. Le focus est donc reporté sur l'habillage. */
+.tf-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface-1);
+  color: var(--text-on-accent);
+  transition:
+    background var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+
+.tf-check[data-checked] {
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+}
+
+.peer:focus-visible ~ .tf-check,
+.peer:focus-visible + .tf-check {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+
+.tf-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  transition: background var(--dur-2) var(--ease);
+}
+
+.tf-switch[data-checked] {
+  background: var(--accent-solid);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+.tf-switch-knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-1);
+  will-change: transform;
+}
+
+.peer:focus-visible ~ .tf-switch,
+.peer:focus-visible + .tf-switch {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+
+/* ── Bandeau défilant ────────────────────────────────────────────────── */
+.tf-marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 22px;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3.4vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.tf-marquee-item i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+/* Contour au lieu d'un plein : alterné avec le plein, il donne du rythme
+   au bandeau sans ajouter de couleur. */
+.tf-marquee-ghost {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--border-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    Couche 3 — alias pour Tailwind
    ═══════════════════════════════════════════════════════════════════════
 
