@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Maquettes de brainstorming (companion visuel)
 .superpowers/
+
+# Captures et traces du navigateur piloté
+.playwright-mcp/
